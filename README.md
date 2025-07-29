@@ -30,25 +30,41 @@ wget https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-GGUF/resolve/main/tinyl
 
 ### Quick Start
 
+**Linux/Raspberry Pi:**
 ```bash
-# Linux/macOS/Pi
 ./deploy.sh
+```
 
-# Windows (PowerShell)
+**Windows (PowerShell):**
+```powershell
 .\deploy.ps1
 ```
 
 ### Available Options
 
+Both scripts support the same options:
+
 ```bash
 # Normal deployment
-./deploy.sh
+./deploy.sh                # Linux/Pi
+.\deploy.ps1               # Windows
 
 # Clean deployment (removes old images/volumes)
-./deploy.sh --clean
+./deploy.sh --clean        # Linux/Pi
+.\deploy.ps1 -Clean        # Windows
 
 # View logs
-./deploy.sh --logs
+./deploy.sh --logs         # Linux/Pi
+.\deploy.ps1 -Logs         # Windows
+
+# Check status
+./deploy.sh --status       # Linux/Pi
+.\deploy.ps1 -Status       # Windows
+
+# Stop service
+./deploy.sh --stop         # Linux/Pi
+.\deploy.ps1 -Stop         # Windows
+```
 
 # Check status
 ./deploy.sh --status
