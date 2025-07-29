@@ -81,7 +81,6 @@ get_local_ip() {
 show_status() {
     echo -e "${BLUE}📊 Container Status:${NC}"
     $DOCKER_COMPOSE ps
-    $DOCKER_COMPOSE ps
     
     echo ""
     echo -e "${BLUE}🌐 Endpoints:${NC}"

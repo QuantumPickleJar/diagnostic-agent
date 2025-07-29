@@ -43,11 +43,29 @@ RUN mkdir -p /app/agent_memory && \
 RUN useradd -m -u 1000 agent && \
     chown -R agent:agent /app
 
-# Switch to non-root user
+# Switch to agent user before downloading model to use correct cache location
 USER agent
 
-# Pre-download the sentence transformer model to avoid first-run delays
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')" || echo "Model download failed, will retry at runtime"
+# Create cache directory structure
+RUN mkdir -p /home/agent/.cache/sentence_transformers
+
+# Pre-download the sentence transformer model with better error handling
+RUN <<EOF python
+import os
+from sentence_transformers import SentenceTransformer
+try:
+    print('Downloading sentence transformer model...')
+    model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+    print('Model downloaded successfully')
+    # Verify the model is cached
+    cache_dir = '/home/agent/.cache/sentence_transformers'
+    if os.path.exists(cache_dir):
+        print(f'Model cached in: {cache_dir}')
+        print(f'Cache contents: {os.listdir(cache_dir)}')
+except Exception as e:
+    print(f'Model download failed: {e}')
+    print('Model will be downloaded at runtime')
+EOF
 
 # Expose port 5000
 EXPOSE 5000
