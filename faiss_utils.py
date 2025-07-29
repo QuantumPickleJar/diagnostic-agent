@@ -6,10 +6,17 @@ import faiss
 # The default model works well on a Raspberry Pi and is around ~120MB.
 from sentence_transformers import SentenceTransformer
 
-LOG_PATH = "/agent_memory/recall_log.jsonl"
-INDEX_PATH = "/agent_memory/embeddings.faiss"
-MAPPING_PATH = "/agent_memory/embeddings.json"
+# Use relative paths that work in both development and container environments
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MEMORY_DIR = os.path.join(BASE_DIR, "agent_memory")
+LOG_PATH = os.path.join(MEMORY_DIR, "recall_log.jsonl")
+INDEX_PATH = os.path.join(MEMORY_DIR, "embeddings.faiss")
+MAPPING_PATH = os.path.join(MEMORY_DIR, "embeddings.json")
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+
+# Ensure the memory directory exists
+os.makedirs(MEMORY_DIR, exist_ok=True)
+
 _model = None
 
 def get_model():
