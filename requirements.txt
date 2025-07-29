@@ -1,4 +1,4 @@
-faiss_utils
-flask
-numpy
-sentence_transformers
+faiss-cpu>=1.9.0
+flask>=3.0.0
+numpy>=2.0.0
+sentence-transformers>=3.0.0
