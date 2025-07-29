@@ -148,10 +148,9 @@ def cleanup_logs():
                 f.write(json.dumps(entry) + '\n')
         
         logger.info(f"Cleaned up logs, kept {len(entries)} recent entries")
-        
-        # Reindex after cleanup
+          # Reindex after cleanup
         faiss_utils.reindex()
-          except Exception as e:
+    except Exception as e:
         logger.error(f"Error during log cleanup: {e}")
 
 def rotate_debug_logs():
