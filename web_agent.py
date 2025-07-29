@@ -66,29 +66,25 @@ def init_system():
     """Initialize the diagnostic agent system on startup"""
     logger.info("Initializing Diagnostic Journalist Agent...")
     
-    # Ensure sentence transformer model is downloaded
+    # Don't block startup on model download
     try:
-        logger.info("Loading sentence transformer model...")
-        faiss_utils.get_model()
-        logger.info("Sentence transformer model loaded successfully")
+        logger.info("Checking for cached models...")
+        # Just check if cache exists, don't force download
+        cache_dir = os.path.expanduser("~/.cache/sentence_transformers")
+        if os.path.exists(cache_dir) and os.listdir(cache_dir):
+            logger.info("Found cached sentence transformer model")
+        else:
+            logger.info("No cached model found, will download on first use")
     except Exception as e:
-        logger.error(f"Failed to load sentence transformer model: {e}")
-        logger.warning("Agent will continue but semantic search may not work")
+        logger.error(f"Model check failed: {e}")
     
-    # Initialize FAISS index
+    # Initialize FAISS index (this should be fast)
     try:
         logger.info("Initializing FAISS index...")
         count = faiss_utils.reindex()
         logger.info(f"FAISS index initialized with {count} entries")
     except Exception as e:
         logger.error(f"Failed to initialize FAISS index: {e}")
-        logger.warning("Agent will continue but search functionality may be limited")
-    
-    # Clean up old logs
-    cleanup_logs()
-    
-    # Rotate debug logs if too large
-    rotate_debug_logs()
     
     logger.info("System initialization complete")
 
@@ -407,22 +403,13 @@ def config():
 @error_handler
 def health():
     """Health check endpoint for container orchestration"""
+    # Don't trigger model download in health check
     health_status = {
         'status': 'healthy',
         'timestamp': datetime.now().isoformat(),
-        'uptime': time.time() - start_time if 'start_time' in globals() else 0,
-        'endpoints_active': True,
         'memory_accessible': os.path.exists(MEMORY_DIR),
-        'faiss_operational': False
+        'endpoints_active': True
     }
-    
-    # Check if FAISS is working
-    try:
-        faiss_utils.get_model()
-        health_status['faiss_operational'] = True
-    except Exception:
-        pass
-    
     return jsonify(health_status)
 
 def load_config():

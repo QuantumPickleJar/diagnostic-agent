@@ -38,7 +38,17 @@ def get_model():
         return None
     if _model is None:
         try:
+            # Check if model is already cached
+            cache_dir = os.path.expanduser("~/.cache/sentence_transformers")
+            model_cache_exists = os.path.exists(cache_dir) and os.listdir(cache_dir)
+            
+            if model_cache_exists:
+                print(f"Loading cached model from {cache_dir}")
+            else:
+                print("Model not cached, downloading...")
+            
             _model = SentenceTransformer(MODEL_NAME)
+            print("Model loaded successfully")
         except Exception as e:
             print(f"Failed to load SentenceTransformer model: {e}")
             return None
