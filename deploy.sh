@@ -3,6 +3,9 @@
 # Diagnostic Agent Deployment Script
 # For Linux and Raspberry Pi
 # Windows users: use deploy.ps1
+# Diagnostic Agent Deployment Script
+# For Linux and Raspberry Pi
+# Windows users: use deploy.ps1
 
 set -e
 
@@ -40,14 +43,6 @@ check_docker() {
         exit 1
     fi
 }
-    if docker compose version &> /dev/null; then
-        DOCKER_COMPOSE="docker compose"
-    elif command -v docker-compose &> /dev/null; then
-        DOCKER_COMPOSE="docker-compose"
-    else
-        echo -e "${RED}❌ Docker Compose is not available.${NC}"
-        exit 1
-    fi
 
 # Function to show usage
 show_usage() {
@@ -85,6 +80,7 @@ get_local_ip() {
 # Function to show status
 show_status() {
     echo -e "${BLUE}📊 Container Status:${NC}"
+    $DOCKER_COMPOSE ps
     $DOCKER_COMPOSE ps
     
     echo ""
