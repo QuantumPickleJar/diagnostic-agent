@@ -1,32 +1,85 @@
-# === Diagnostic Journalist Agent Blueprint ===
+# Diagnostic Journalist Agent Blueprint
 
-## SYSTEM DESIGN COMPONENTS
--------------------------
-This file describes the structural design for the "Diagnostic Journalist" agent
-running on a Raspberry Pi 4 with optional SSH bridge to a more capable dev machine.
+## Overview
 
-# == CORE COMPONENTS ==
+This is the "Diagnostic Journalist" agent designed to run on a Raspberry Pi 4 with optional SSH bridge to a more capable development machine.
 
+## Model Setup
 
-# == LOCAL MODEL SETUP INSTRUCTIONS ==
-Recommended lightweight quantized models for Raspberry Pi 4 (4GB RAM):
-- TinyLlama: https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-GGUF
-- Phi-2: https://huggingface.co/TheBloke/phi-2-GGUF
-- Download and place model files in /home/pi/models/
+### Sentence Transformer Model (Auto-downloaded)
 
-# [A] OpenInterpreter Installation:
-```sh
-git clone https://github.com/KillianLucas/open-interpreter.git
-cd open-interpreter
-pip install -e .
+- **Model**: `sentence-transformers/all-MiniLM-L6-v2` (~120MB)
+- **Location**: Auto-downloaded to `/home/agent/.cache/sentence_transformers/` in container
+- **Mount**: Handled by `model_cache` volume in docker-compose.yml
+- **Purpose**: Semantic search and memory recall via FAISS embeddings
+
+### TinyLlama Model (Optional Manual Download)
+
+- **Model**: TinyLlama-1.1B-Chat-GGUF
+- **Location**: Place in `./models/tinyllama.gguf`
+- **Mount**: `./models:/app/models` in docker-compose.yml
+
+To download TinyLlama:
+
+```bash
+mkdir -p models
+wget https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-GGUF/resolve/main/tinyllama-1.1b-chat.Q4_K_M.gguf -O ./models/tinyllama.gguf
 ```
 
-# [B] SSH Bridge Stub (dev machine not yet ready):
-- Add SSH public key to ~/.ssh/authorized_keys on dev machine
-- Ensure port 2222 is open and the agent user has limited permissions
+## Deployment
 
-## Example command:
-`wget https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-GGUF/resolve/main/tinyllama-1.1b-chat.Q4_K_M.gguf -O /home/pi/models/tinyllama.gguf`
+### Quick Start
+
+```bash
+# Linux/macOS/Pi
+./deploy.sh
+
+# Windows (PowerShell)
+.\deploy.ps1
+```
+
+### Available Options
+
+```bash
+# Normal deployment
+./deploy.sh
+
+# Clean deployment (removes old images/volumes)
+./deploy.sh --clean
+
+# View logs
+./deploy.sh --logs
+
+# Check status
+./deploy.sh --status
+
+# Stop service
+./deploy.sh --stop
+```
+
+### Manual Docker Commands
+
+```bash
+# Build and start
+docker-compose up --build -d
+
+# View logs
+docker-compose logs -f
+
+# Stop
+docker-compose down
+```
+
+## Docker Compose Configuration
+
+The system uses the following volume mounts:
+
+- `agent_memory:/app/agent_memory` - Persistent memory and logs
+- `./logs:/app/logs` - External log access
+- `./models:/app/models` - TinyLlama and other local models
+- `model_cache:/home/agent/.cache` - Sentence transformer cache
+
+## System Architecture
 
 
 # [1] PROMPT TEMPLATE (system_prompt.txt)
@@ -193,18 +246,10 @@ Will include: input box, streamed output area, scrollback, and FAISS search butt
 - Add systemd support for local deploy without Docker if needed
 
 == FAISS JOURNAL EMBEDDINGS ==
-FAISS is used for semantic recall of past log entries. Each `task` and `result`
-line from `recall_log.jsonl` is embedded with SentenceTransformer and stored in
-the index. Install the dependencies with `pip install sentence-transformers
-faiss-cpu`. The first call will download the small `all-MiniLM-L6-v2` model
-(~120MB). If you are offline, pre-download this model on another machine and
-place it under the `~/.cache/sentence_transformers/` directory on the Pi.
+FAISS is used for semantic recall of past log entries. Each `task` and `result` line from `recall_log.jsonl` is embedded with SentenceTransformer and stored in the index. Install the dependencies with `pip install sentence-transformers faiss-cpu`. The first call will download the small `all-MiniLM-L6-v2` model
+(~120MB). If you are offline, pre-download this model on another machine and place it under the `~/.cache/sentence_transformers/` directory on the Pi.
 
-Run `python3 index_memory.py` to build `/agent_memory/embeddings.faiss` from
-`recall_log.jsonl`. If the log file is empty the script simply prints "No log
-entries found" and no index is created. The Flask server exposes `/search` for
-nearest-neighbor lookup and `/reindex` to rebuild the index. Embeddings are
-automatically refreshed every five minutes while the server is running.
+Run `python3 index_memory.py` to build `/agent_memory/embeddings.faiss` from `recall_log.jsonl`. If the log file is empty the script simply prints "No log entries found" and no index is created. The Flask server exposes `/search` for nearest-neighbor lookup and `/reindex` to rebuild the index. Embeddings are automatically refreshed every five minutes while the server is running.
 
 
 # == STALE LOOKUP HANDLING ==
