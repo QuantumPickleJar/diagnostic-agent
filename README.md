@@ -7,6 +7,28 @@ running on a Raspberry Pi 4 with optional SSH bridge to a more capable dev machi
 
 # == CORE COMPONENTS ==
 
+
+# == LOCAL MODEL SETUP INSTRUCTIONS ==
+Recommended lightweight quantized models for Raspberry Pi 4 (4GB RAM):
+- TinyLlama: https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-GGUF
+- Phi-2: https://huggingface.co/TheBloke/phi-2-GGUF
+- Download and place model files in /home/pi/models/
+
+# [A] OpenInterpreter Installation:
+```sh
+git clone https://github.com/KillianLucas/open-interpreter.git
+cd open-interpreter
+pip install -e .
+```
+
+# [B] SSH Bridge Stub (dev machine not yet ready):
+- Add SSH public key to ~/.ssh/authorized_keys on dev machine
+- Ensure port 2222 is open and the agent user has limited permissions
+
+## Example command:
+`wget https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-GGUF/resolve/main/tinyllama-1.1b-chat.Q4_K_M.gguf -O /home/pi/models/tinyllama.gguf`
+
+
 # [1] PROMPT TEMPLATE (system_prompt.txt)
 system_prompt = """
 You are a diagnostic assistant called “Diagnostic Journalist.”
@@ -56,11 +78,8 @@ def get_fact(key):
 
 if __name__ == '__main__':
     get_fact(sys.argv[1])
-```
 
 # [3] MEMORY WRITER (memory.py)
-
-```py
 import json, time
 
 def log_event(task, result):
@@ -73,21 +92,16 @@ def log_event(task, result):
         f.write(json.dumps(entry) + "\n")
 ```
 
+# [3] MEMORY WRITER (memory.py)
+
+```py
+
+```
+
 # [4] MODEL FALLBACK WRAPPER (run_agent.sh)
 ```sh
-#!/bin/bash
 
-PI_MODEL="/home/pi/models/tinyllama.gguf"
-DEV_IP="192.168.0.42"
-PORT=22
 
-if nc -z $DEV_IP $PORT; then
-    echo "[+] Using remote model via SSH"
-    open-interpreter --shell "ssh pi@$DEV_IP" --system "$(cat system_prompt.txt)"
-else
-    echo "[-] Fallback: Using local model on Pi"
-    ./llama.cpp/main -m $PI_MODEL -p "$(cat system_prompt.txt)"
-fi
 ```
 
 # == WEB FRONTEND SERVER ==
@@ -104,7 +118,6 @@ app = Flask(__name__)
 @app.route("/ask", methods=["POST"])
 def ask():
     question = request.json.get("question")
-    # Pipe the question into local model or Open Interpreter subprocess
     output = subprocess.run(["python3", "agent_cli.py", question], capture_output=True, text=True)
     return jsonify({"response": output.stdout})
 
@@ -136,6 +149,11 @@ services:
     environment:
       - MODEL_PATH=/app/models/tinyllama.gguf
       - PROMPT_PATH=/app/system_prompt.txt
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: '3G'
     restart: unless-stopped
 ```
 
@@ -174,3 +192,16 @@ Will include: input box, streamed output area, scrollback, and FAISS search butt
 - Serve front-end with instructions
 - Add REST endpoints for memory recall and config management
 - Add systemd support for local deploy without Docker if needed
+
+
+
+# == STALE LOOKUP HANDLING ==
+# Timestamp fact verification in static_config.json:
+# - Prompt user to re-verify fact if older than defined interval (e.g., 1 week)
+# - Flag entry as outdated in recall_log.jsonl
+
+# == TODO ==
+# - Implement FAISS journal embeddings
+# - Serve front-end with instructions
+# - Add REST endpoints for memory recall and config management
+# - Add systemd support for local deploy without Docker if needed
