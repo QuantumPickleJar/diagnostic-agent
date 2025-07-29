@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Universal Deployment Script for Diagnostic Agent
-# Works on Linux (including Raspberry Pi) and macOS
-# For Windows, use deploy.ps1
+# Diagnostic Agent Deployment Script
+# For Linux and Raspberry Pi
+# Windows users: use deploy.ps1
 
 set -e
 
@@ -15,45 +15,39 @@ CYAN='\033[0;36m'
 GRAY='\033[0;37m'
 NC='\033[0m' # No Color
 
-# Detect platform
-PLATFORM="unknown"
-if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    PLATFORM="linux"
-    # Check if it's a Raspberry Pi
-    if grep -q "Raspberry Pi" /proc/cpuinfo 2>/dev/null; then
-        PLATFORM="pi"
-    fi
-elif [[ "$OSTYPE" == "darwin"* ]]; then
-    PLATFORM="macos"
-fi
+echo -e "${GREEN}🚀 Diagnostic Agent Deployment${NC}"
 
-echo -e "${GREEN}🚀 Diagnostic Agent Deployment Script${NC}"
-echo -e "${GRAY}Platform detected: $PLATFORM${NC}"
-
-# Function to check if Docker is installed and running
+# Function to check Docker
 check_docker() {
     if ! command -v docker &> /dev/null; then
-        echo -e "${RED}❌ Docker is not installed.${NC}"
-        if [[ "$PLATFORM" == "pi" || "$PLATFORM" == "linux" ]]; then
-            echo "Install with: curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh"
-        elif [[ "$PLATFORM" == "macos" ]]; then
-            echo "Install Docker Desktop from: https://www.docker.com/products/docker-desktop"
-        fi
+        echo -e "${RED}❌ Docker not installed. Install with:${NC}"
+        echo "curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh"
         exit 1
     fi
 
-    # Check if Docker is running
     if ! docker info &> /dev/null; then
-        echo -e "${RED}❌ Docker is not running. Please start Docker first.${NC}"
+        echo -e "${RED}❌ Docker not running. Please start Docker first.${NC}"
         exit 1
     fi
 
-    # Check Docker Compose
-    if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
-        echo -e "${RED}❌ Docker Compose is not available.${NC}"
+    # Prefer new 'docker compose' over legacy 'docker-compose'
+    if docker compose version &> /dev/null; then
+        DOCKER_COMPOSE="docker compose"
+    elif command -v docker-compose &> /dev/null; then
+        DOCKER_COMPOSE="docker-compose"
+    else
+        echo -e "${RED}❌ Docker Compose not available.${NC}"
         exit 1
     fi
 }
+    if docker compose version &> /dev/null; then
+        DOCKER_COMPOSE="docker compose"
+    elif command -v docker-compose &> /dev/null; then
+        DOCKER_COMPOSE="docker-compose"
+    else
+        echo -e "${RED}❌ Docker Compose is not available.${NC}"
+        exit 1
+    fi
 
 # Function to show usage
 show_usage() {
@@ -75,19 +69,23 @@ show_usage() {
 
 # Function to get local IP
 get_local_ip() {
-    if [[ "$PLATFORM" == "pi" || "$PLATFORM" == "linux" ]]; then
-        hostname -I | awk '{print $1}'
-    elif [[ "$PLATFORM" == "macos" ]]; then
-        ifconfig | grep "inet " | grep -v 127.0.0.1 | awk '{print $2}' | head -1
-    else
-        echo "localhost"
+    # Try hostname -I first (works on most Linux systems including Pi)
+    if command -v hostname &> /dev/null; then
+        local ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+        if [[ -n "$ip" ]]; then
+            echo "$ip"
+            return
+        fi
     fi
+    
+    # Fallback to localhost
+    echo "localhost"
 }
 
 # Function to show status
 show_status() {
     echo -e "${BLUE}📊 Container Status:${NC}"
-    docker-compose ps
+    $DOCKER_COMPOSE ps
     
     echo ""
     echo -e "${BLUE}🌐 Endpoints:${NC}"
@@ -148,13 +146,13 @@ check_docker
 # Handle different operations
 if [[ "$STOP" == true ]]; then
     echo -e "${YELLOW}🛑 Stopping Diagnostic Agent...${NC}"
-    docker-compose down
+    $DOCKER_COMPOSE down
     exit 0
 fi
 
 if [[ "$LOGS" == true ]]; then
     echo -e "${YELLOW}📋 Showing logs (Ctrl+C to exit):${NC}"
-    docker-compose logs -f
+    $DOCKER_COMPOSE logs -f
     exit 0
 fi
 
@@ -173,29 +171,26 @@ mkdir -p models
 # Clean deployment if requested
 if [[ "$CLEAN" == true ]]; then
     echo -e "${YELLOW}🧹 Performing clean deployment...${NC}"
-    docker-compose down
+    $DOCKER_COMPOSE down
     docker image prune -f || true
-    if [[ "$PLATFORM" == "pi" ]]; then
-        # On Pi, also clean up volumes to free space
-        docker volume prune -f || true
-    fi
+    docker volume prune -f || true
 fi
 
 # Stop existing containers
 echo -e "${YELLOW}🛑 Stopping existing containers...${NC}"
-docker-compose down || true
+$DOCKER_COMPOSE down || true
 
 # Build the image
 echo -e "${YELLOW}🔨 Building diagnostic agent image...${NC}"
 if [[ "$CLEAN" == true ]]; then
-    docker-compose build --no-cache
+    $DOCKER_COMPOSE build --no-cache
 else
-    docker-compose build
+    $DOCKER_COMPOSE build
 fi
 
 # Start the container
 echo -e "${YELLOW}▶️  Starting diagnostic agent container...${NC}"
-docker-compose up -d
+$DOCKER_COMPOSE up -d
 
 # Wait for container to be healthy
 echo -e "${YELLOW}⏳ Waiting for container to be healthy...${NC}"
@@ -203,7 +198,7 @@ max_attempts=30
 attempt=0
 
 while [ $attempt -lt $max_attempts ]; do
-    if docker-compose ps | grep -q "healthy"; then
+    if $DOCKER_COMPOSE ps | grep -q "healthy"; then
         echo -e "${GREEN}✅ Diagnostic agent is running and healthy!${NC}"
         break
     fi
@@ -211,7 +206,7 @@ while [ $attempt -lt $max_attempts ]; do
     if [ $attempt -eq $((max_attempts - 1)) ]; then
         echo -e "${RED}❌ Container failed to become healthy after $max_attempts attempts${NC}"
         echo -e "${YELLOW}📋 Checking logs...${NC}"
-        docker-compose logs --tail=50
+        $DOCKER_COMPOSE logs --tail=50
         exit 1
     fi
     
@@ -225,7 +220,7 @@ show_status
 
 echo ""
 echo -e "${YELLOW}📋 Recent logs:${NC}"
-docker-compose logs --tail=10
+$DOCKER_COMPOSE logs --tail=10
 
 echo ""
 echo -e "${GREEN}✅ Deployment complete!${NC}"
