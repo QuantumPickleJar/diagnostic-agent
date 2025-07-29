@@ -186,22 +186,21 @@ Agent should timestamp last config load. If older than X mins or if lookup fails
 
 Will include: input box, streamed output area, scrollback, and FAISS search button
 
-== TODO ==
 
+# == FAISS JOURNAL EMBEDDINGS ==
+Run `python3 index_memory.py` to generate `/agent_memory/embeddings.faiss` from
+`recall_log.jsonl`. The Flask server exposes `/search` for nearest-neighbor
+lookup and `/reindex` to rebuild the index. Embeddings are refreshed every five
+minutes while the server is running.
+
+
+# == STALE LOOKUP HANDLING ==
+- Timestamp fact verification in static_config.json:
+- Prompt user to re-verify fact if older than defined interval (e.g., 1 week)
+- Flag entry as outdated in recall_log.jsonl
+
+# == TODO ==
 - Implement FAISS journal embeddings
 - Serve front-end with instructions
 - Add REST endpoints for memory recall and config management
 - Add systemd support for local deploy without Docker if needed
-
-
-
-# == STALE LOOKUP HANDLING ==
-# Timestamp fact verification in static_config.json:
-# - Prompt user to re-verify fact if older than defined interval (e.g., 1 week)
-# - Flag entry as outdated in recall_log.jsonl
-
-# == TODO ==
-# - Implement FAISS journal embeddings
-# - Serve front-end with instructions
-# - Add REST endpoints for memory recall and config management
-# - Add systemd support for local deploy without Docker if needed
