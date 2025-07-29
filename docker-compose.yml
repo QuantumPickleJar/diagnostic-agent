@@ -39,16 +39,19 @@ services:
         limits:
           memory: 1G
         reservations:
-          memory: 512M
-    # Security options
+          memory: 512M    # Security options
     security_opt:
       - no-new-privileges:true
     # Read-only root filesystem for enhanced security (with tmpfs for temp files)
-    read_only: true
+    # Temporarily disabled for development - re-enable for production
+    # read_only: true
     tmpfs:
       - /tmp
       - /var/tmp
       - /home/agent/.cache/huggingface
+      # Allow writing to debug logs and Python cache
+      - /app/debug.log:rw
+      - /home/agent/.cache/pip:rw
 
 volumes:
   agent_memory:
