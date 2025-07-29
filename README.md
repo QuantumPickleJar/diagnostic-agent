@@ -212,12 +212,12 @@ while the server is running.
 
 
 # == STALE LOOKUP HANDLING ==
-# Timestamp fact verification in static_config.json:
-# - Prompt user to re-verify fact if older than defined interval (e.g., 1 week)
-# - Flag entry as outdated in recall_log.jsonl
+- Timestamp fact verification in static_config.json:
+- Prompt user to re-verify fact if older than defined interval (e.g., 1 week)
+- Flag entry as outdated in recall_log.jsonl
 
 # == TODO ==
-# - Implement FAISS journal embeddings
-# - Serve front-end with instructions
-# - Add REST endpoints for memory recall and config management
-# - Add systemd support for local deploy without Docker if needed
+- Implement FAISS journal embeddings
+- Serve front-end with instructions
+- Add REST endpoints for memory recall and config management
+- Add systemd support for local deploy without Docker if needed

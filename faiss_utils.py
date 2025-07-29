@@ -54,6 +54,7 @@ def reindex():
         json.dump(entries, f)
     return True
 
+
 def search(query, top_k=5):
     if not os.path.exists(INDEX_PATH) or not os.path.exists(MAPPING_PATH):
         return []
