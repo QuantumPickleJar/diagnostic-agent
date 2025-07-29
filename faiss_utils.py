@@ -1,3 +1,4 @@
+import os
 import json
 import numpy as np
 import faiss
@@ -30,18 +31,29 @@ def _load_entries():
     return entries
 
 def reindex():
+    """Rebuild FAISS index from recall log.
+
+    Returns True if any entries were indexed, otherwise False. In the empty case
+    any existing index files are removed so search returns no results.
+    """
     entries = _load_entries()
     texts = [f"{e.get('task','')} {e.get('result','')}" for e in entries]
     if not texts:
-        return
+        if os.path.exists(INDEX_PATH):
+            os.remove(INDEX_PATH)
+        if os.path.exists(MAPPING_PATH):
+            os.remove(MAPPING_PATH)
+        return False
     model = get_model()
     embeddings = model.encode(texts, show_progress_bar=False)
-    embeddings = np.array(embeddings, dtype='float32')
+    embeddings = np.array(embeddings, dtype="float32")
     index = faiss.IndexFlatL2(embeddings.shape[1])
     index.add(embeddings)
     faiss.write_index(index, INDEX_PATH)
-    with open(MAPPING_PATH, 'w') as f:
+    with open(MAPPING_PATH, "w") as f:
         json.dump(entries, f)
+    return True
+
 
 def search(query, top_k=5):
     if not os.path.exists(INDEX_PATH) or not os.path.exists(MAPPING_PATH):

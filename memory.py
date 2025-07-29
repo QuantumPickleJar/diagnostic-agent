@@ -13,4 +13,4 @@ def log_event(task, result):
     with open(LOG_PATH, "a") as f:
         f.write(json.dumps(entry) + "\n")
     # update embeddings after logging
-    faiss_utils.reindex()
+   faiss_utils.reindex()
