@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  diagnostic-agent:
+    build: .
+    container_name: diagnostic-journalist
+    ports:
+      - "5000:5000"
+    volumes:
+      # Persist agent memory across container restarts
+      - agent_memory:/app/agent_memory
+      # Mount logs for external monitoring if needed
+      - ./logs:/app/logs
+      # Mount models directory for TinyLlama and other local models
+      - ./models:/app/models
+      # Cache for sentence transformer models to speed up restarts
+      - model_cache:/home/agent/.cache
+    environment:
+      - PYTHONUNBUFFERED=1
+      - FLASK_ENV=production
+      - PYTHONDONTWRITEBYTECODE=1
+      # Optionally specify TinyLlama model path if available
+      - TINYLLAMA_MODEL_PATH=/app/models/tinyllama.gguf
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    # Resource limits for Pi deployment
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    # Read-only root filesystem for enhanced security (with tmpfs for temp files)
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/tmp
+      - /home/agent/.cache/huggingface
+
+volumes:
+  agent_memory:
+    driver: local
+  model_cache:
+    driver: local
