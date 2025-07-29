@@ -2,6 +2,8 @@ import os
 import json
 import numpy as np
 import faiss
+# SentenceTransformer downloads the embedding model on first use.
+# The default model works well on a Raspberry Pi and is around ~120MB.
 from sentence_transformers import SentenceTransformer
 
 LOG_PATH = "/agent_memory/recall_log.jsonl"
@@ -31,29 +33,30 @@ def _load_entries():
     return entries
 
 def reindex():
-    """Rebuild FAISS index from recall log.
+    """(Re)build the FAISS index from ``recall_log.jsonl``.
 
-    Returns True if any entries were indexed, otherwise False. In the empty case
-    any existing index files are removed so search returns no results.
+    The SentenceTransformer embedding model is loaded (and downloaded if
+    necessary) on the first call. Returns the number of entries indexed. If no
+    log entries exist the index files are removed so search simply returns an
+    empty list.
     """
+    # ensure the embedding model downloads on first run
+    model = get_model()
     entries = _load_entries()
     texts = [f"{e.get('task','')} {e.get('result','')}" for e in entries]
     if not texts:
-        if os.path.exists(INDEX_PATH):
-            os.remove(INDEX_PATH)
-        if os.path.exists(MAPPING_PATH):
-            os.remove(MAPPING_PATH)
-        return False
-    model = get_model()
+        for path in (INDEX_PATH, MAPPING_PATH):
+            if os.path.exists(path):
+                os.remove(path)
+        return 0
     embeddings = model.encode(texts, show_progress_bar=False)
-    embeddings = np.array(embeddings, dtype="float32")
+    embeddings = np.array(embeddings, dtype='float32')
     index = faiss.IndexFlatL2(embeddings.shape[1])
     index.add(embeddings)
     faiss.write_index(index, INDEX_PATH)
-    with open(MAPPING_PATH, "w") as f:
+    with open(MAPPING_PATH, 'w') as f:
         json.dump(entries, f)
-    return True
-
+    return len(entries)
 
 def search(query, top_k=5):
     if not os.path.exists(INDEX_PATH) or not os.path.exists(MAPPING_PATH):
