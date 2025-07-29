@@ -188,10 +188,26 @@ Will include: input box, streamed output area, scrollback, and FAISS search butt
 
 == TODO ==
 
-- Implement FAISS journal embeddings
 - Serve front-end with instructions
 - Add REST endpoints for memory recall and config management
 - Add systemd support for local deploy without Docker if needed
+
+== FAISS JOURNAL EMBEDDINGS ==
+The agent uses Sentence Transformers to embed past task/result pairs. Install
+the dependencies with:
+```sh
+pip install faiss-cpu sentence-transformers
+```
+
+`index_memory.py` will download the default model (`all-MiniLM-L6-v2`) on first
+run. Make sure the Pi has internet access or pre-download the model and set
+`SENTENCE_TRANSFORMERS_HOME` to its directory.
+
+Run `python3 index_memory.py` to build `/agent_memory/embeddings.faiss` from
+`recall_log.jsonl`. If the log is empty the script simply clears any previous
+index. The Flask server exposes `/search` for nearest-neighbor lookup and
+`/reindex` to rebuild the index. Embeddings are refreshed every five minutes
+while the server is running.
 
 
 

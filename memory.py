@@ -1,4 +1,8 @@
-import json, time
+import json
+import time
+import faiss_utils
+
+LOG_PATH = "/agent_memory/recall_log.jsonl"
 
 def log_event(task, result):
     entry = {
@@ -6,5 +10,7 @@ def log_event(task, result):
         "task": task,
         "result": result
     }
-    with open("/agent_memory/recall_log.jsonl", "a") as f:
+    with open(LOG_PATH, "a") as f:
         f.write(json.dumps(entry) + "\n")
+    # update embeddings after logging
+    faiss_utils.reindex()
