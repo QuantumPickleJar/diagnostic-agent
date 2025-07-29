@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Diagnostic Journalist</title>
+  <style>
+    body {
+      background-color: #121212;
+      color: #00ff88;
+      font-family: monospace;
+      margin: 0;
+      padding: 0;
+    }
+    .terminal {
+      padding: 1em;
+      max-width: 900px;
+      margin: auto;
+    }
+    .prompt {
+      margin-top: 1em;
+      display: flex;
+      gap: 1em;
+    }
+    input[type="text"] {
+      background: #1e1e1e;
+      color: #00ff88;
+      border: 1px solid #00ff88;
+      flex-grow: 1;
+      padding: 0.5em;
+      font-family: monospace;
+    }
+    button {
+      background-color: #00ff88;
+      color: #121212;
+      border: none;
+      padding: 0.5em 1em;
+      cursor: pointer;
+    }
+    .status {
+      font-size: 0.9em;
+      margin-bottom: 1em;
+    }
+    .output {
+      white-space: pre-wrap;
+      background-color: #1e1e1e;
+      padding: 1em;
+      border: 1px solid #00ff88;
+      min-height: 200px;
+      margin-top: 1em;
+    }
+    .tabs {
+      display: flex;
+      margin-top: 2em;
+      gap: 1em;
+    }
+    .tab-button {
+      background: #1e1e1e;
+      border: 1px solid #00ff88;
+      padding: 0.25em 0.5em;
+      cursor: pointer;
+    }
+    .log-viewer {
+      display: none;
+      margin-top: 1em;
+      background: #1e1e1e;
+      border: 1px solid #00ff88;
+      padding: 1em;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="terminal">
+    <h2>>_ Diagnostic Journalist</h2>
+    <div class="status" id="status">[Checking connection status...]</div>
+
+    <div class="prompt">
+      <input type="text" id="command" placeholder="Enter command here...">
+      <button onclick="sendCommand()">Send</button>
+      <button onclick="toggleSSH()">Toggle SSH Bridge</button>
+    </div>
+
+    <div class="output" id="output"></div>
+
+    <div class="tabs">
+      <button class="tab-button" onclick="toggleLog()">📜 View Recall Log</button>
+    </div>
+    <div class="log-viewer" id="logViewer">[Recall log will be loaded here]</div>
+  </div>
+
+  <script>
+    async function updateStatus() {
+      try {
+        const res = await fetch('/status');
+        const json = await res.json();
+        document.getElementById('status').textContent = `[Status: ${json.status}]`;
+      } catch {
+        document.getElementById('status').textContent = '[Status: UNKNOWN]';
+      }
+    }
+
+    async function sendCommand() {
+      const cmd = document.getElementById('command').value;
+      const res = await fetch('/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: cmd })
+      });
+      const data = await res.json();
+      document.getElementById('output').textContent = data.response;
+    }
+
+    async function toggleSSH() {
+      await fetch('/toggle-ssh', { method: 'POST' });
+      updateStatus();
+    }
+
+    async function toggleLog() {
+      const log = document.getElementById('logViewer');
+      if (log.style.display === 'none') {
+        const res = await fetch('/recall');
+        const json = await res.json();
+        log.textContent = JSON.stringify(json, null, 2);
+        log.style.display = 'block';
+      } else {
+        log.style.display = 'none';
+      }
+    }
+
+    setInterval(updateStatus, 15000);
+    updateStatus();
+  </script>
+</body>
+</html>
