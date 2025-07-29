@@ -90,44 +90,71 @@
     <div class="log-viewer" id="logViewer">[Recall log will be loaded here]</div>
   </div>
 
-  <script>
-    async function updateStatus() {
+  <script>    async function updateStatus() {
       try {
         const res = await fetch('/status');
         const json = await res.json();
-        document.getElementById('status').textContent = `[Status: ${json.status}]`;
+        const statusText = `[Status: ${json.status}] SSH: ${json.ssh_bridge ? 'ON' : 'OFF'} | Entries: ${json.faiss_entries}`;
+        document.getElementById('status').textContent = statusText;
       } catch {
-        document.getElementById('status').textContent = '[Status: UNKNOWN]';
+        document.getElementById('status').textContent = '[Status: CONNECTION ERROR]';
       }
-    }
-
-    async function sendCommand() {
+    }async function sendCommand() {
       const cmd = document.getElementById('command').value;
-      const res = await fetch('/ask', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: cmd })
-      });
-      const data = await res.json();
-      document.getElementById('output').textContent = data.response;
+      if (!cmd.trim()) return;
+      
+      document.getElementById('output').textContent = 'Processing...';
+      
+      try {
+        const res = await fetch('/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: cmd })
+        });
+        const data = await res.json();
+        
+        if (data.error) {
+          document.getElementById('output').textContent = `Error: ${data.error}`;
+        } else {
+          document.getElementById('output').textContent = data.response;
+        }
+      } catch (error) {
+        document.getElementById('output').textContent = `Connection error: ${error.message}`;
+      }
+      
+      document.getElementById('command').value = '';
     }
 
     async function toggleSSH() {
       await fetch('/toggle-ssh', { method: 'POST' });
       updateStatus();
-    }
-
-    async function toggleLog() {
+    }    async function toggleLog() {
       const log = document.getElementById('logViewer');
       if (log.style.display === 'none') {
-        const res = await fetch('/recall');
-        const json = await res.json();
-        log.textContent = JSON.stringify(json, null, 2);
-        log.style.display = 'block';
+        try {
+          const res = await fetch('/recall');
+          const json = await res.json();
+          if (json.error) {
+            log.textContent = `Error: ${json.error}`;
+          } else {
+            log.textContent = JSON.stringify(json.entries, null, 2);
+          }
+          log.style.display = 'block';
+        } catch (error) {
+          log.textContent = `Connection error: ${error.message}`;
+          log.style.display = 'block';
+        }
       } else {
         log.style.display = 'none';
       }
     }
+
+    // Allow Enter key to send commands
+    document.getElementById('command').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        sendCommand();
+      }
+    });
 
     setInterval(updateStatus, 15000);
     updateStatus();
