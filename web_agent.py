@@ -1,5 +1,11 @@
 from flask import Flask, request, jsonify, send_from_directory
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+    DOTENV_AVAILABLE = True
+except ImportError:
+    DOTENV_AVAILABLE = False
+    def load_dotenv(*args, **kwargs):
+        pass  # No-op if dotenv not available
 from threading import Timer, Thread
 import faiss_utils
 import memory
@@ -42,7 +48,8 @@ os.makedirs(ARCHIVE_DIR, exist_ok=True)
 app = Flask(__name__)
 
 # Load activation word from optional .env file
-load_dotenv(os.path.join(BASE_DIR, '.env'))
+if DOTENV_AVAILABLE:
+    load_dotenv(os.path.join(BASE_DIR, '.env'))
 ACTIVATION_WORD = os.getenv('ACTIVATION_WORD')
 
 # Global variables for graceful shutdown

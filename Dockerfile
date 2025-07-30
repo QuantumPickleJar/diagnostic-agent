@@ -18,16 +18,17 @@ RUN apt-get update && apt-get install -y \
 # Copy requirements first for better Docker layer caching
 COPY requirements.txt .
 
-# Install Python dependencies with optimizations for Pi and ARM architecture
-RUN pip install --no-cache-dir --upgrade pip && \
+# Install Python dependencies with caching for faster rebuilds
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir --upgrade pip && \
     # Install numpy first as it's a dependency for many packages
     pip install --no-cache-dir "numpy>=2.0.0" && \
     # Install FAISS with specific handling for ARM
     pip install --no-cache-dir "faiss-cpu>=1.9.0" --no-build-isolation || \
     pip install --no-cache-dir "faiss-cpu==1.7.4" --no-build-isolation || \
     echo "FAISS installation failed, will use fallback" && \
-    # Install remaining requirements
-    pip install --no-cache-dir "flask>=3.0.0" "sentence-transformers>=3.0.0" "requests>=2.31.0" "psutil>=5.9.0"
+    # Install all remaining requirements from requirements.txt for better caching
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy application files
 COPY . .
