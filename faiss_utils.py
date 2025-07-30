@@ -38,6 +38,14 @@ def get_model():
         return None
     if _model is None:
         try:
+            # Check for manually downloaded model first
+            manual_model_dir = os.path.abspath(os.path.join(BASE_DIR, "models", "all-MiniLM-L6-v2"))
+            if os.path.exists(manual_model_dir) and os.listdir(manual_model_dir):
+                print(f"Loading manually downloaded model from {manual_model_dir}")
+                _model = SentenceTransformer(manual_model_dir)
+                print("Manual model loaded successfully")
+                return _model
+            
             # Check if model is already cached
             cache_dir = os.path.expanduser("~/.cache/sentence_transformers")
             model_cache_exists = os.path.exists(cache_dir) and os.listdir(cache_dir)
