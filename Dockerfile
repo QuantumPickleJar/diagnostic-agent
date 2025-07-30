@@ -50,22 +50,8 @@ USER agent
 RUN mkdir -p /home/agent/.cache/sentence_transformers
 
 # Pre-download the sentence transformer model with better error handling
-RUN <<EOF python
-import os
-from sentence_transformers import SentenceTransformer
-try:
-    print('Downloading sentence transformer model...')
-    model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
-    print('Model downloaded successfully')
-    # Verify the model is cached
-    cache_dir = '/home/agent/.cache/sentence_transformers'
-    if os.path.exists(cache_dir):
-        print(f'Model cached in: {cache_dir}')
-        print(f'Cache contents: {os.listdir(cache_dir)}')
-except Exception as e:
-    print(f'Model download failed: {e}')
-    print('Model will be downloaded at runtime')
-EOF
+COPY download_model.py .
+RUN python download_model.py
 
 # Expose port 5000
 EXPOSE 5000
