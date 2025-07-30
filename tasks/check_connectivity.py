@@ -6,7 +6,7 @@ import time
 import os
 
 PING_TARGET = "1.1.1.1"
-SSH_HOST = "192.168.0.153"
+SSH_HOST = "picklegate.ddns.net"
 SSH_PORT = 2222
 
 # Check internet connectivity with ping
@@ -30,6 +30,6 @@ output = {
     "ssh_tunnel_open": ssh_ok,
 }
 
-os.makedirs("/agent_memory", exist_ok=True)
-with open("/agent_memory/connectivity.json", "w") as f:
+os.makedirs('/app/agent_memory', exist_ok=True)
+with open('/app/agent_memory/connectivity.json', 'w') as f:
     json.dump(output, f, indent=2)
