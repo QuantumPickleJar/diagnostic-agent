@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, send_from_directory
+from dotenv import load_dotenv
 from threading import Timer, Thread
 import faiss_utils
 import memory
@@ -40,6 +41,10 @@ os.makedirs(ARCHIVE_DIR, exist_ok=True)
 
 app = Flask(__name__)
 
+# Load activation word from optional .env file
+load_dotenv(os.path.join(BASE_DIR, '.env'))
+ACTIVATION_WORD = os.getenv('ACTIVATION_WORD')
+
 # Global variables for graceful shutdown
 shutdown_flag = False
 background_threads = []
@@ -60,6 +65,22 @@ def error_handler(f):
                 'endpoint': f.__name__,
                 'timestamp': datetime.now().isoformat()
             }), 500
+    return wrapper
+
+def requires_activation_word(f):
+    """Ensure requests supply the correct activation word."""
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        word = request.headers.get('X-Activate-Word')
+        if word is None:
+            data = request.get_json(silent=True) or {}
+            word = data.get('password')
+
+        if not ACTIVATION_WORD or word != ACTIVATION_WORD:
+            return jsonify({'error': 'Invalid activation word'}), 403
+
+        return f(*args, **kwargs)
+
     return wrapper
 
 def init_system():
@@ -307,6 +328,7 @@ def search():
 
 @app.route('/reindex', methods=['POST'])
 @error_handler
+@requires_activation_word
 def reindex_endpoint():
     """Reindex the FAISS database"""
     count = faiss_utils.reindex()
@@ -396,8 +418,31 @@ def config():
     
     current[parts[-1]] = new_value
     save_config(cfg)
-    
+
     return jsonify({'value': new_value})
+
+@app.route('/system_info', methods=['GET'])
+@error_handler
+@requires_activation_word
+def system_info():
+    """Return latest ISA script outputs"""
+    files = {
+        'system_facts': os.path.join(MEMORY_DIR, 'system_facts.json'),
+        'connectivity': os.path.join(MEMORY_DIR, 'connectivity.json'),
+        'process_status': os.path.join(MEMORY_DIR, 'process_status.json'),
+    }
+    info = {}
+    for key, path in files.items():
+        if os.path.exists(path):
+            try:
+                with open(path, 'r') as f:
+                    info[key] = json.load(f)
+            except Exception as e:
+                logger.error(f"Failed to load {path}: {e}")
+                info[key] = 'unavailable'
+        else:
+            info[key] = 'unavailable'
+    return jsonify(info)
 
 @app.route('/health')
 @error_handler
@@ -470,6 +515,25 @@ def _periodic_health_check():
         except Exception as e:
             logger.error(f"Health check failed: {e}")
 
+def _periodic_isa_scripts():
+    """Periodically run ISA scripts"""
+    global shutdown_flag
+    scripts = [
+        os.path.join(BASE_DIR, "collect_self_facts.py"),
+        os.path.join(BASE_DIR, "check_connectivity.py"),
+        os.path.join(BASE_DIR, "scan_processes.py"),
+    ]
+    while not shutdown_flag:
+        for script in scripts:
+            try:
+                subprocess.run(["python3", script], check=True)
+            except Exception as e:
+                logger.error(f"ISA script failed: {script} - {e}")
+        for _ in range(300):
+            if shutdown_flag:
+                break
+            time.sleep(1)
+
 def signal_handler(signum, frame):
     """Handle graceful shutdown"""
     global shutdown_flag
@@ -499,12 +563,15 @@ if __name__ == '__main__':
     reindex_thread = Thread(target=_periodic_reindex, daemon=True)
     cleanup_thread = Thread(target=_periodic_cleanup, daemon=True)
     health_thread = Thread(target=_periodic_health_check, daemon=True)
+    isa_thread = Thread(target=_periodic_isa_scripts, daemon=True)
     
-    background_threads.extend([reindex_thread, cleanup_thread, health_thread])
+    background_threads.extend([reindex_thread, cleanup_thread, health_thread, isa_thread])
+    app.config["ISA_THREAD"] = isa_thread
     
     reindex_thread.start()
     cleanup_thread.start()
     health_thread.start()
+    isa_thread.start()
     
     logger.info("Starting Diagnostic Journalist Agent web server on port 5000")
     logger.info(f"Memory directory: {MEMORY_DIR}")
