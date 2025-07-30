@@ -39,10 +39,15 @@ def download_model():
             huggingface_hub.logging.set_verbosity_info()
             print("[INFO] Set huggingface_hub logging to INFO level.")
         except Exception as e:
-            print(f"[WARN] Could not set huggingface_hub logging: {e}")
+            print(f"[WARN] Could not set transformers logging: {e}")
+
+        # Set environment variables for better download progress visibility
+        os.environ["HF_HUB_VERBOSITY"] = "info"
+        os.environ["TRANSFORMERS_VERBOSITY"] = "info"
 
         # This will download to the cache directory automatically
         start = time.time()
+        print("[INFO] Starting model download... (this may take several minutes)")
         model = SentenceTransformer(model_name)
         elapsed = time.time() - start
         print(f"[SUCCESS] Model downloaded successfully in {elapsed:.2f} seconds.")
