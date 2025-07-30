@@ -49,9 +49,8 @@ USER agent
 # Create cache directory structure
 RUN mkdir -p /home/agent/.cache/sentence_transformers
 
-# Pre-download the sentence transformer model with better error handling
+# Copy download_model.py for runtime use (will check ./models first, then cache/download as needed)
 COPY download_model.py .
-RUN python download_model.py
 
 # Expose port 5000
 EXPOSE 5000

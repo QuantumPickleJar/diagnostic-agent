@@ -19,6 +19,9 @@ services:
       - PYTHONUNBUFFERED=1
       - FLASK_ENV=production
       - PYTHONDONTWRITEBYTECODE=1
+      # Enhanced logging for transformers/huggingface downloads
+      - TRANSFORMERS_VERBOSITY=info
+      - HF_HUB_VERBOSITY=info
       # Optionally specify TinyLlama model path if available
       - TINYLLAMA_MODEL_PATH=/app/models/tinyllama.gguf
     restart: unless-stopped
