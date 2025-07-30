@@ -50,8 +50,7 @@ services:
       - /tmp
       - /var/tmp
       - /home/agent/.cache/huggingface
-      # Allow writing to debug logs and Python cache
-      - /app/debug.log:rw
+      # Allow writing to Python cache
       - /home/agent/.cache/pip:rw
 
 volumes:

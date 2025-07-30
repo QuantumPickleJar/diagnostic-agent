@@ -27,7 +27,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler('debug.log', mode='a')
+        logging.FileHandler('/app/logs/debug.log', mode='a')
     ]
 )
 logger = logging.getLogger(__name__)
@@ -179,7 +179,7 @@ def cleanup_logs():
 
 def rotate_debug_logs():
     """Rotate debug logs if they get too large"""
-    debug_log_path = os.path.join(BASE_DIR, 'debug.log')
+    debug_log_path = '/app/logs/debug.log'
     if not os.path.exists(debug_log_path):
         return
     
@@ -189,14 +189,14 @@ def rotate_debug_logs():
             # Archive current log
             timestamp = int(time.time())
             archived_log = f'debug_{timestamp}.log'
-            shutil.move(debug_log_path, os.path.join(BASE_DIR, archived_log))
+            shutil.move(debug_log_path, os.path.join('/app/logs', archived_log))
             logger.info(f"Rotated debug log to {archived_log}")
             
             # Remove old archived logs (keep only last 3)
-            log_files = sorted([f for f in os.listdir(BASE_DIR) if f.startswith('debug_') and f.endswith('.log')])
+            log_files = sorted([f for f in os.listdir('/app/logs') if f.startswith('debug_') and f.endswith('.log')])
             while len(log_files) > 3:
                 oldest_log = log_files.pop(0)
-                os.remove(os.path.join(BASE_DIR, oldest_log))
+                os.remove(os.path.join('/app/logs', oldest_log))
                 logger.info(f"Removed old log file: {oldest_log}")
                 
     except Exception as e:
