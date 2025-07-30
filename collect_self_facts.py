@@ -60,5 +60,5 @@ output = {
 }
 
 os.makedirs("/agent_memory", exist_ok=True)
-with open("/agent_memory/self_facts.json", "w") as f:
+with open("/agent_memory/system_facts.json", "w") as f:
     json.dump(output, f, indent=2)

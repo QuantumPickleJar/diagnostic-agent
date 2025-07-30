@@ -55,5 +55,5 @@ output = {
 }
 
 os.makedirs('/agent_memory', exist_ok=True)
-with open('/agent_memory/process_scan.json', 'w') as f:
+with open('/agent_memory/process_status.json', 'w') as f:
     json.dump(output, f, indent=2)

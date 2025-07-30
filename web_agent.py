@@ -418,8 +418,31 @@ def config():
     
     current[parts[-1]] = new_value
     save_config(cfg)
-    
+
     return jsonify({'value': new_value})
+
+@app.route('/system_info', methods=['GET'])
+@error_handler
+@requires_activation_word
+def system_info():
+    """Return latest ISA script outputs"""
+    files = {
+        'system_facts': os.path.join(MEMORY_DIR, 'system_facts.json'),
+        'connectivity': os.path.join(MEMORY_DIR, 'connectivity.json'),
+        'process_status': os.path.join(MEMORY_DIR, 'process_status.json'),
+    }
+    info = {}
+    for key, path in files.items():
+        if os.path.exists(path):
+            try:
+                with open(path, 'r') as f:
+                    info[key] = json.load(f)
+            except Exception as e:
+                logger.error(f"Failed to load {path}: {e}")
+                info[key] = 'unavailable'
+        else:
+            info[key] = 'unavailable'
+    return jsonify(info)
 
 @app.route('/health')
 @error_handler
