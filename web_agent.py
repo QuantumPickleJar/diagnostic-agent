@@ -470,6 +470,25 @@ def _periodic_health_check():
         except Exception as e:
             logger.error(f"Health check failed: {e}")
 
+def _periodic_isa_scripts():
+    """Periodically run ISA scripts"""
+    global shutdown_flag
+    scripts = [
+        os.path.join(BASE_DIR, "collect_self_facts.py"),
+        os.path.join(BASE_DIR, "check_connectivity.py"),
+        os.path.join(BASE_DIR, "scan_processes.py"),
+    ]
+    while not shutdown_flag:
+        for script in scripts:
+            try:
+                subprocess.run(["python3", script], check=True)
+            except Exception as e:
+                logger.error(f"ISA script failed: {script} - {e}")
+        for _ in range(300):
+            if shutdown_flag:
+                break
+            time.sleep(1)
+
 def signal_handler(signum, frame):
     """Handle graceful shutdown"""
     global shutdown_flag
@@ -499,12 +518,15 @@ if __name__ == '__main__':
     reindex_thread = Thread(target=_periodic_reindex, daemon=True)
     cleanup_thread = Thread(target=_periodic_cleanup, daemon=True)
     health_thread = Thread(target=_periodic_health_check, daemon=True)
+    isa_thread = Thread(target=_periodic_isa_scripts, daemon=True)
     
-    background_threads.extend([reindex_thread, cleanup_thread, health_thread])
+    background_threads.extend([reindex_thread, cleanup_thread, health_thread, isa_thread])
+    app.config["ISA_THREAD"] = isa_thread
     
     reindex_thread.start()
     cleanup_thread.start()
     health_thread.start()
+    isa_thread.start()
     
     logger.info("Starting Diagnostic Journalist Agent web server on port 5000")
     logger.info(f"Memory directory: {MEMORY_DIR}")
