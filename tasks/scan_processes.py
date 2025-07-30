@@ -54,6 +54,6 @@ output = {
     'ports': ports,
 }
 
-os.makedirs('/agent_memory', exist_ok=True)
-with open('/agent_memory/process_status.json', 'w') as f:
+os.makedirs('/app/agent_memory', exist_ok=True)
+with open('/app/agent_memory/process_status.json', 'w') as f:
     json.dump(output, f, indent=2)

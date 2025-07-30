@@ -59,6 +59,6 @@ output = {
     "cpu_load_1min": load1,
 }
 
-os.makedirs("/agent_memory", exist_ok=True)
-with open("/agent_memory/system_facts.json", "w") as f:
+os.makedirs('/app/agent_memory', exist_ok=True)
+with open('/app/agent_memory/system_facts.json', 'w') as f:
     json.dump(output, f, indent=2)
