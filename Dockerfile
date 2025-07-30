@@ -52,6 +52,9 @@ RUN mkdir -p /home/agent/.cache/sentence_transformers
 # Copy download_model.py for runtime use (will check ./models first, then cache/download as needed)
 COPY download_model.py .
 
+# Copy the run_agent.py script into the container
+COPY run_agent.py .
+
 # Expose port 5000
 EXPOSE 5000
 
@@ -65,4 +68,4 @@ ENV FLASK_ENV=production
 ENV PYTHONDONTWRITEBYTECODE=1
 
 # Run the application
-CMD ["python", "web_agent.py"]
+CMD ["python", "run_agent.py"]
