@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, send_from_directory
+from dotenv import load_dotenv
 from threading import Timer, Thread
 import faiss_utils
 import memory
@@ -40,6 +41,10 @@ os.makedirs(ARCHIVE_DIR, exist_ok=True)
 
 app = Flask(__name__)
 
+# Load activation word from optional .env file
+load_dotenv(os.path.join(BASE_DIR, '.env'))
+ACTIVATION_WORD = os.getenv('ACTIVATION_WORD')
+
 # Global variables for graceful shutdown
 shutdown_flag = False
 background_threads = []
@@ -60,6 +65,22 @@ def error_handler(f):
                 'endpoint': f.__name__,
                 'timestamp': datetime.now().isoformat()
             }), 500
+    return wrapper
+
+def requires_activation_word(f):
+    """Ensure requests supply the correct activation word."""
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        word = request.headers.get('X-Activate-Word')
+        if word is None:
+            data = request.get_json(silent=True) or {}
+            word = data.get('password')
+
+        if not ACTIVATION_WORD or word != ACTIVATION_WORD:
+            return jsonify({'error': 'Invalid activation word'}), 403
+
+        return f(*args, **kwargs)
+
     return wrapper
 
 def init_system():
@@ -307,6 +328,7 @@ def search():
 
 @app.route('/reindex', methods=['POST'])
 @error_handler
+@requires_activation_word
 def reindex_endpoint():
     """Reindex the FAISS database"""
     count = faiss_utils.reindex()
