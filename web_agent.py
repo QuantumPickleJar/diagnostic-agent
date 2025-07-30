@@ -519,9 +519,9 @@ def _periodic_isa_scripts():
     """Periodically run ISA scripts"""
     global shutdown_flag
     scripts = [
-        os.path.join(BASE_DIR, "collect_self_facts.py"),
-        os.path.join(BASE_DIR, "check_connectivity.py"),
-        os.path.join(BASE_DIR, "scan_processes.py"),
+        os.path.join(BASE_DIR, "tasks", "collect_self_facts.py"),
+        os.path.join(BASE_DIR, "tasks", "check_connectivity.py"),
+        os.path.join(BASE_DIR, "tasks", "scan_processes.py"),
     ]
     while not shutdown_flag:
         for script in scripts:

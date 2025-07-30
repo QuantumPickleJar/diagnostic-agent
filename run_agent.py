@@ -5,7 +5,7 @@ import argparse
 from datetime import datetime
 from pathlib import Path
 
-CONFIG_PATH = "/agent_memory/static_config.json"
+CONFIG_PATH = "/app/agent_memory/static_config.json"
 
 
 def log_decision(mode: str, selected: str, action: str) -> None:

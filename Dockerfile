@@ -27,7 +27,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir "faiss-cpu==1.7.4" --no-build-isolation || \
     echo "FAISS installation failed, will use fallback" && \
     # Install remaining requirements
-    pip install --no-cache-dir "flask>=3.0.0" "sentence-transformers>=3.0.0" "requests>=2.31.0"
+    pip install --no-cache-dir "flask>=3.0.0" "sentence-transformers>=3.0.0" "requests>=2.31.0" "psutil>=5.9.0"
 
 # Copy application files
 COPY . .
@@ -38,6 +38,11 @@ RUN mkdir -p /app/agent_memory && \
     mkdir -p /app/logs && \
     chmod 755 /app/agent_memory && \
     chmod 755 /app/logs
+
+# Ensure static_config.json exists with correct structure
+RUN if [ ! -f /app/agent_memory/static_config.json ]; then \
+    echo '{"mode":"local","local_model_path":"/app/models/tinyllama.gguf","system_prompt_file":"system_prompt.txt","remote_dev":{"user":"user","ip":"192.168.1.100","port":22},"logging":{"level":"INFO","max_log_size_mb":50,"max_log_days":30},"memory":{"faiss_index_path":"/app/agent_memory/embeddings.faiss","recall_log_path":"/app/agent_memory/recall_log.jsonl"},"system_info":{"hostname":"diagnostic-agent","platform":"raspberry-pi","last_updated":"2025-07-30T00:00:00Z"}}' > /app/agent_memory/static_config.json; \
+    fi
 
 # Create a non-root user for security
 RUN useradd -m -u 1000 agent && \
@@ -67,5 +72,5 @@ ENV PYTHONUNBUFFERED=1
 ENV FLASK_ENV=production
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Run the application
-CMD ["python", "run_agent.py"]
+# Run the web application
+CMD ["python", "web_agent.py"]

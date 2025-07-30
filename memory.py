@@ -2,7 +2,7 @@ import json
 import time
 import faiss_utils
 
-LOG_PATH = "/agent_memory/recall_log.jsonl"
+LOG_PATH = "/app/agent_memory/recall_log.jsonl"
 
 def log_event(task, result):
     entry = {

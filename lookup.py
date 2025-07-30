@@ -1,7 +1,7 @@
 import json
 import sys
 
-with open("/agent_memory/static_config.json") as f:
+with open("/app/agent_memory/static_config.json") as f:
     config = json.load(f)
 
 def get_fact(key):
