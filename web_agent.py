@@ -21,6 +21,14 @@ import sys
 from datetime import datetime, timedelta
 from functools import wraps
 
+# Import real diagnostic engine
+try:
+    from diagnostic_agent import execute_diagnostic
+    REAL_DIAGNOSTICS = True
+except ImportError:
+    REAL_DIAGNOSTICS = False
+    logger.warning("Real diagnostic engine not available, using simulation")
+
 # Configure logging with rotation
 logging.basicConfig(
     level=logging.INFO,
@@ -202,8 +210,23 @@ def rotate_debug_logs():
     except Exception as e:
         logger.error(f"Error during debug log rotation: {e}")
 
+def execute_diagnostic_query(question):
+    """Execute diagnostic query using real or simulated engine"""
+    
+    # Use real diagnostic engine if available
+    if REAL_DIAGNOSTICS:
+        try:
+            return execute_diagnostic(question)
+        except Exception as e:
+            logger.error(f"Real diagnostic engine failed: {e}")
+            # Fall back to simulation
+            pass
+    
+    # Fallback simulation (original code)
+    return simulate_diagnostic_agent(question)
+
 def simulate_diagnostic_agent(question):
-    """Simulate the diagnostic agent's response"""
+    """Simulate the diagnostic agent's response (fallback)"""
     timestamp = datetime.now().isoformat()
     
     # Log the question
@@ -211,7 +234,7 @@ def simulate_diagnostic_agent(question):
     
     # Simulate some basic diagnostic responses
     if any(keyword in question.lower() for keyword in ['network', 'connection', 'ping', 'dns']):
-        response = f"""[{timestamp}] NETWORK DIAGNOSTIC MODE
+        response = f"""[{timestamp}] NETWORK DIAGNOSTIC MODE (Simulated)
 Query: {question}
 
 Checking network connectivity...
@@ -230,7 +253,7 @@ Status: Analysis complete. See detailed logs for troubleshooting steps."""
         return response
     
     elif any(keyword in question.lower() for keyword in ['status', 'health', 'system']):
-        response = f"""[{timestamp}] SYSTEM STATUS CHECK
+        response = f"""[{timestamp}] SYSTEM STATUS CHECK (Simulated)
 Query: {question}
 
 System Health:
@@ -258,7 +281,7 @@ Status: All systems operational."""
             for i, entry in enumerate(related, 1):
                 context += f"{i}. {entry.get('task', '')}: {entry.get('result', '')[:100]}...\n"
         
-        response = f"""[{timestamp}] GENERAL DIAGNOSTIC MODE
+        response = f"""[{timestamp}] GENERAL DIAGNOSTIC MODE (Simulated)
 Query: {question}
 
 Processing your request using available diagnostic protocols...
@@ -315,7 +338,7 @@ def ask():
         return jsonify({'error': 'Empty question'}), 400
     
     # Process the question through our diagnostic agent
-    response = simulate_diagnostic_agent(question)
+    response = execute_diagnostic_query(question)
     
     return jsonify({'response': response})
 
