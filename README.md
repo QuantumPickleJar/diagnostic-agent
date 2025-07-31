@@ -547,7 +547,87 @@ Will include: input box, streamed output area, scrollback, and FAISS search butt
 FAISS is used for semantic recall of past log entries. Each `task` and `result` line from `recall_log.jsonl` is embedded with SentenceTransformer and stored in the index. Install the dependencies with `pip install sentence-transformers faiss-cpu`. The first call will download the small `all-MiniLM-L6-v2` model
 (~120MB). If you are offline, pre-download this model on another machine and place it under the `~/.cache/sentence_transformers/` directory on the Pi.
 
+# Diagnostic Journalist Agent
+
+An intelligent diagnostic agent that combines natural language understanding with comprehensive system monitoring. Features local NLP processing for offline operation and conversational responses to system queries.
+
+## Architecture
+
+The agent now includes multiple response modes:
+
+1. **Smart Agent Mode**: Uses local LLM (Phi-3-mini or TinyLlama) for natural language responses
+2. **Diagnostic Mode**: Structured diagnostic protocols for system analysis  
+3. **Fallback Mode**: Simple pattern matching when LLM is unavailable
+
+## Model Options
+
+For Raspberry Pi 4, the agent supports:
+- **Phi-3-mini-4k-instruct** (3.8B parameters) - Recommended for better responses
+- **TinyLlama-1.1B-Chat** (1.1B parameters) - Lighter fallback option
+- **No-LLM mode** - Structured responses without language model
+
+## Quick Setup
+
+```bash
+# Fix Docker networking issues (if needed)
+sudo ./fix_docker_iptables.sh
+
+# Deploy with new smart agent
+./deploy.sh
+
+# Test natural language queries
+python3 cli_prompt.py --activation-word PurpleTomato "Is Nextcloud running?"
+```
+
+## Natural Language Examples
+
+The agent now responds naturally to queries like:
+
+```bash
+# Container queries
+"Is the nextcloud container running right now?"
+"What containers are currently active?"
+
+# System health  
+"How is the system doing?"
+"What's the current memory usage?"
+
+# Network diagnostics
+"Is the internet connection working?"
+"Check the WireGuard tunnel status"
+
+# Troubleshooting
+"I can't connect to my services, what's wrong?"
+"Why is git pull hanging?"
+```
+
+## Network Configuration
+
+This system is designed for a dual-adapter Raspberry Pi setup:
+
+- **wlan0** (Built-in antenna): WireGuard tunnel traffic
+- **wlx*** (External Netgear A7000): Home network connectivity  
+- **Split tunneling**: Only specific traffic routed through VPN
+- **Local access preserved**: Services remain accessible via home network
+
+## Memory and Recall System
+
 Run `python3 index_memory.py` to build `/agent_memory/embeddings.faiss` from `recall_log.jsonl`. If the log file is empty the script simply prints "No log entries found" and no index is created. The Flask server exposes `/search` for nearest-neighbor lookup and `/reindex` to rebuild the index. Embeddings are automatically refreshed every five minutes while the server is running.
+
+## Stale Lookup Handling
+
+- Timestamp fact verification in static_config.json
+- Prompt user to re-verify fact if older than defined interval (e.g., 1 week)  
+- Flag entry as outdated in recall_log.jsonl
+
+## TODO
+
+- Implement FAISS journal embeddings ✅
+- Serve front-end with instructions ✅
+- Add REST endpoints for memory recall and config management ✅
+- Add systemd support for local deploy without Docker if needed
+- Enhanced network troubleshooting automation ✅
+- Smart response generation with local LLM ✅
 
 
 # == STALE LOOKUP HANDLING ==
