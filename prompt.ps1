@@ -17,13 +17,13 @@ $cliScript = Join-Path $scriptDir "cli_prompt.py"
 
 # Check if Python script exists
 if (!(Test-Path $cliScript)) {
-    Write-Host "❌ Error: CLI script not found at $cliScript" -ForegroundColor Red
+    Write-Host "Error: CLI script not found at $cliScript" -ForegroundColor Red
     exit 1
 }
 
 # Show usage if no arguments or help requested
 if ($Help -or ($args.Count -eq 0 -and !$Interactive -and !$Status -and !$Question)) {
-    Write-Host "🚀 Diagnostic Agent CLI" -ForegroundColor Green
+    Write-Host "Diagnostic Agent CLI" -ForegroundColor Green
     Write-Host ""
     Write-Host "Usage:" -ForegroundColor Yellow
     Write-Host "  .\prompt.ps1 -Question `"Your question here`"          # Ask a single question"
@@ -86,6 +86,6 @@ if ($Question) {
 try {
     & python $pythonArgs
 } catch {
-    Write-Host "❌ Error executing CLI script: $_" -ForegroundColor Red
+    Write-Host "Error executing CLI script: $_" -ForegroundColor Red
     exit 1
 }

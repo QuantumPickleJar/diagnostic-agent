@@ -9,6 +9,8 @@ RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     curl \
+    iputils-ping \
+    net-tools \
     libblas-dev \
     liblapack-dev \
     gfortran \

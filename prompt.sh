@@ -24,7 +24,7 @@ fi
 
 # Show usage if no arguments
 if [ $# -eq 0 ]; then
-    echo -e "${GREEN}🚀 Diagnostic Agent CLI${NC}"
+    echo -e "${GREEN}Diagnostic Agent CLI${NC}"
     echo ""
     echo "Usage:"
     echo "  $0 \"Your question here\"                    # Ask a single question"

@@ -4,17 +4,36 @@ import subprocess
 import socket
 import time
 import os
+import shutil
 
 PING_TARGET = "1.1.1.1"
 SSH_HOST = "picklegate.ddns.net"
 SSH_PORT = 2222
 
-# Check internet connectivity with ping
-ping_result = subprocess.run([
-    "ping", "-c", "1", PING_TARGET
-], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-internet_ok = ping_result.returncode == 0
+# Check internet connectivity with ping (with fallback if ping not available)
+internet_ok = False
+try:
+    # First check if ping command exists
+    ping_cmd = shutil.which("ping")
+    if ping_cmd:
+        ping_result = subprocess.run([
+            ping_cmd, "-c", "1", PING_TARGET
+        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+        internet_ok = ping_result.returncode == 0
+    else:
+        # Fallback: try to connect to a reliable service
+        try:
+            with socket.create_connection(("8.8.8.8", 53), timeout=3):
+                internet_ok = True
+        except Exception:
+            internet_ok = False
+except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+    # Fallback: try to connect to a reliable service
+    try:
+        with socket.create_connection(("8.8.8.8", 53), timeout=3):
+            internet_ok = True
+    except Exception:
+        internet_ok = False
 
 # Attempt to open SSH tunnel port
 ssh_ok = False
