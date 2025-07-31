@@ -1,4 +1,25 @@
 #!/usr/bin/env python3
+"""
+System Facts Collector
+Gathers basic system information including hostname, memory usage, and CPU load.
+
+Hardware Requirements:
+- Any system with Python support (Pi, x86, ARM)
+- Minimum 64MB RAM for fact collection
+- CPU with basic load monitoring capability
+
+Package Requirements:
+- Python 3.6+
+- Standard library: socket, os, time, json
+- Optional: psutil for enhanced memory/CPU statistics
+- Fallback to /proc filesystem parsing if psutil unavailable
+
+System Dependencies:
+- /proc filesystem mounted (Linux systems)
+- /proc/meminfo readable for memory statistics
+- /proc/loadavg readable for CPU load information
+- hostname resolution working
+"""
 import json
 import socket
 import os

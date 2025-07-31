@@ -9,7 +9,7 @@
   },
   "logging": {
     "level": "INFO",
-    "max_log_size_mb": 50,
+    "max_log_size_mb": 250,
     "max_log_days": 30
   },
   "memory": {

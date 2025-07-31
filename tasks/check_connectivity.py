@@ -1,4 +1,25 @@
 #!/usr/bin/env python3
+"""
+Basic Connectivity Checker
+Tests internet connectivity and SSH tunnel accessibility.
+
+Hardware Requirements:
+- Any network-capable device (Pi, x86, ARM)
+- Active network interface with internet access
+- Minimum 128MB RAM for basic connectivity tests
+
+Package Requirements:
+- Python 3.6+
+- Standard library only (socket, subprocess, json, os, time)
+- Optional: iputils-ping package for ping command
+- Optional: psutil for enhanced system monitoring
+
+System Dependencies:
+- Network stack configured and active
+- DNS resolution working (fallback methods included)
+- Socket support in kernel
+- /proc filesystem for system information access
+"""
 import json
 import subprocess
 import socket

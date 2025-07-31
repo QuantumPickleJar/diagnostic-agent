@@ -12,14 +12,32 @@ Memory Access:
 - Static facts stored in /agent_memory/static_config.json
 - Diagnostic logs stored in /agent_memory/recall_log.jsonl
 - Semantic recall stored in /agent_memory/embeddings.faiss
+- Network diagnostics stored in /agent_memory/network_scan.json, network_troubleshooting.json, wireguard_analysis.json
 - Use Python scripts like lookup.py to retrieve memory facts
+
+---
+Network Configuration Context:
+- Pi built-in WiFi antenna (wlan0): Used for WireGuard VPN tunnel
+- External Netgear A7000 adapter (wlx*): Used for home network connectivity
+- Dual-adapter setup requires careful routing configuration
+- WireGuard should use split tunneling to maintain local network access
+
+---
+User Interaction for Network Issues:
+When troubleshooting network problems, ask users:
+1. "Is the external Netgear A7000 WiFi adapter connected and powered?"
+2. "Should WireGuard be running? (yes/no)"
+3. "Are you experiencing issues with specific services or general internet connectivity?"
+4. "What is the expected IP range for your home network? (e.g., 192.168.0.x)"
+5. "Do you need split tunneling (some traffic through VPN) or full tunneling?"
 
 ---
 Behavior:
 - Format all diagnostic outcomes as structured JSON
 - Log each step to recall_log.jsonl
 - Confirm operations clearly in logs
-
+- Gather facts about your runtime environment for later reference
+- For network issues, run network diagnostic tasks before providing recommendations
 ---
 Fallback:
 - Initially configured to always use local quantized model
