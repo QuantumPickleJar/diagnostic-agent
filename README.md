@@ -95,6 +95,190 @@ The system uses the following volume mounts:
 - `./models:/app/models` - TinyLlama and other local models
 - `model_cache:/home/agent/.cache` - Sentence transformer cache
 
+## CLI Interface
+
+The diagnostic agent includes a powerful CLI interface (`cli_prompt.py`) that allows you to interact with a deployed agent from the command line. This is especially useful when the agent is deployed behind NGINX or on a remote server.
+
+### Basic Usage
+
+```bash
+# Ask a single question
+python3 cli_prompt.py "What is the system status?"
+
+# Use the wrapper script (Linux/macOS)
+./prompt.sh "Check network connectivity"
+
+# Interactive mode
+python3 cli_prompt.py --interactive
+
+# Check agent status
+python3 cli_prompt.py --status
+```
+
+### Remote Agent Access
+
+When your diagnostic agent is deployed on a remote server (e.g., Raspberry Pi behind NGINX):
+
+```bash
+# Connect to remote agent
+python3 cli_prompt.py --host your-pi.local --port 5000 "System health check"
+
+# Using environment variables
+export DIAGNOSTIC_AGENT_HOST="picklegate.ddns.net"
+export DIAGNOSTIC_AGENT_PORT="5000"
+python3 cli_prompt.py "Scan running processes"
+
+# Via NGINX reverse proxy
+python3 cli_prompt.py --host your-domain.com --port 80 "Network diagnostic"
+```
+
+### SSH Tunnel Access
+
+For secure access over SSH (following the castlebravo setup):
+
+```bash
+# Set up SSH tunnel first
+ssh -L 5000:localhost:5000 -p 2222 castlebravo@picklegate.ddns.net
+
+# Then use CLI locally (in another terminal)
+python3 cli_prompt.py --host localhost --port 5000 "What processes are running?"
+```
+
+### Advanced CLI Options
+
+```bash
+# All available options
+python3 cli_prompt.py --help
+
+# Common patterns
+python3 cli_prompt.py --host 192.168.1.100 --verbose "Detailed system analysis"
+python3 cli_prompt.py --activation-word PurpleTomato "Protected diagnostic"
+python3 cli_prompt.py --output-format json "System status" | jq .
+python3 cli_prompt.py --interactive --host remote-pi.local
+```
+
+### CLI Examples for Deployed Agent
+
+```bash
+# Quick system health check
+python3 cli_prompt.py --host your-pi.local "What is the current system health?"
+
+# Network diagnostics
+python3 cli_prompt.py --host your-pi.local "Check internet connectivity and SSH tunnel status"
+
+# Process monitoring
+python3 cli_prompt.py --host your-pi.local "Show me running processes and open ports"
+
+# Memory analysis
+python3 cli_prompt.py --host your-pi.local "Analyze memory usage and system load"
+
+# Historical data search
+python3 cli_prompt.py --host your-pi.local "Find similar network issues from the past"
+
+# Interactive troubleshooting session
+python3 cli_prompt.py --interactive --host your-pi.local
+```
+
+### Integration with NGINX
+
+If your diagnostic agent is behind an NGINX reverse proxy:
+
+```nginx
+# NGINX configuration example
+server {
+    listen 80;
+    server_name your-domain.com;
+    
+    location / {
+        proxy_pass http://localhost:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+Then access via CLI:
+
+```bash
+# Through NGINX proxy
+python3 cli_prompt.py --host your-domain.com --port 80 "System diagnostic"
+
+# With SSL (if configured)
+# Note: CLI currently supports HTTP only, use SSH tunnel for secure access
+```
+
+### Output Formats
+
+```bash
+# Human-readable output (default)
+python3 cli_prompt.py "System status"
+
+# JSON output for scripting
+python3 cli_prompt.py --output-format json "System status" | jq '.response'
+
+# Verbose debugging
+python3 cli_prompt.py --verbose "Debug network issues"
+```
+
+### Environment Configuration
+
+Set these environment variables for convenience:
+
+```bash
+# In your ~/.bashrc or ~/.profile
+export DIAGNOSTIC_AGENT_HOST="your-pi.local"
+export DIAGNOSTIC_AGENT_PORT="5000"
+export ACTIVATION_WORD="your_secret_word"
+
+# Then use simplified commands
+python3 cli_prompt.py "Quick system check"
+```
+
+### Testing Deployed Endpoints
+
+Use the CLI to test your deployed diagnostic agent to ensure it's working correctly:
+
+```bash
+# Test basic connectivity and health
+python3 cli_prompt.py --host your-domain.com --status
+
+# Test through NGINX reverse proxy (port 80/443)
+python3 cli_prompt.py --host your-domain.com --port 80 "System health check"
+
+# Test with custom port (if not using standard ports)
+python3 cli_prompt.py --host your-pi.local --port 5000 "Network connectivity test"
+
+# Automated deployment verification script
+python3 cli_prompt.py --output-format json --host your-domain.com "System status" | jq '.success'
+
+# Test all major functions to verify deployment
+python3 cli_prompt.py --host your-domain.com "What is the current system status?"
+python3 cli_prompt.py --host your-domain.com "Check internet connectivity"
+python3 cli_prompt.py --host your-domain.com "Show running processes"
+python3 cli_prompt.py --host your-domain.com "Search memory for network issues"
+```
+
+**Deployment Testing Checklist:**
+1. ✅ `--status` returns healthy status
+2. ✅ Basic prompts receive responses
+3. ✅ System info queries work (CPU, memory, processes)
+4. ✅ Network connectivity checks function
+5. ✅ Memory search/recall operates correctly
+6. ✅ SSH bridge status (if configured)
+
+**For CI/CD Integration:**
+```bash
+# Simple health check for automated deployment
+if python3 cli_prompt.py --host $AGENT_HOST --status --output-format json | jq -e '.success'; then
+    echo "✅ Diagnostic Agent deployment successful"
+else
+    echo "❌ Diagnostic Agent deployment failed"
+    exit 1
+fi
+```
+
 ## System Architecture
 
 
@@ -164,13 +348,111 @@ def log_event(task, result):
 # [3] MEMORY WRITER (memory.py)
 
 ```py
+import json
+import time
+import faiss_utils
 
+LOG_PATH = "/app/agent_memory/recall_log.jsonl"
+
+def log_event(task, result):
+    entry = {
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "task": task,
+        "result": result
+    }
+    with open(LOG_PATH, "a") as f:
+        f.write(json.dumps(entry) + "\n")
+    # update embeddings after logging
+    faiss_utils.reindex()
 ```
 
-# [4] MODEL FALLBACK WRAPPER (run_agent.sh)
+# [4] MODEL SELECTION WRAPPER (run_agent.py)
 ```sh
+import json
+import subprocess
+import socket
+import argparse
+from datetime import datetime
+from pathlib import Path
+
+CONFIG_PATH = "/app/agent_memory/static_config.json"
 
 
+def log_decision(mode: str, selected: str, action: str) -> None:
+    """Print a structured JSON decision log."""
+    log = {
+        "mode": mode,
+        "selected": selected,
+        "action": action,
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+    }
+    print(json.dumps(log))
+
+
+def check_ssh(host: str, port: int) -> bool:
+    """Return True if SSH server is reachable."""
+    try:
+        with socket.create_connection((host, port), timeout=3):
+            return True
+    except OSError:
+        return False
+
+
+def run_local(model_path: str, prompt: str, mode: str) -> None:
+    action = f"./llama.cpp/main -m {model_path} -p '{prompt}'"
+    print("[-] Fallback: Using local model")
+    log_decision(mode, "local", action)
+    subprocess.run(["./llama.cpp/main", "-m", model_path, "-p", prompt])
+
+
+def run_remote(user: str, host: str, port: int, prompt: str, mode: str) -> None:
+    ssh_cmd = f"ssh -p {port} {user}@{host}"
+    action = f"open-interpreter --shell \"{ssh_cmd}\" --system PROMPT"
+    print("[+] Using remote model via SSH")
+    log_decision(mode, "remote", action)
+    subprocess.run(["open-interpreter", "--shell", ssh_cmd, "--system", prompt])
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Run Diagnostic Journalist agent")
+    parser.add_argument(
+        "--mode",
+        choices=["auto", "local", "remote", "hybrid"],
+        help="Override mode from config",
+    )
+    args = parser.parse_args()
+
+    config_path = Path(CONFIG_PATH)
+    with config_path.open() as f:
+        config = json.load(f)
+
+    mode = args.mode or config.get("mode", "auto")
+    local_model_path = config.get("local_model_path")
+    remote_dev = config.get("remote_dev", {})
+    user = remote_dev.get("user")
+    host = remote_dev.get("ip")
+    port = remote_dev.get("port", 22)
+    prompt_file = Path(config.get("system_prompt_file", "system_prompt.txt"))
+
+    with prompt_file.open() as f:
+        prompt = f.read()
+
+    if mode == "local":
+        run_local(local_model_path, prompt, mode)
+    elif mode == "remote":
+        run_remote(user, host, port, prompt, mode)
+    elif mode == "hybrid":
+        log_decision(mode, "none", "Hybrid mode not yet supported")
+        print("[!] Hybrid mode not yet supported")
+    else:  # auto mode
+        if check_ssh(host, port):
+            run_remote(user, host, port, prompt, mode)
+        else:
+            run_local(local_model_path, prompt, mode)
+
+
+if __name__ == "__main__":
+    main()
 ```
 
 # == WEB FRONTEND SERVER ==
@@ -278,3 +560,62 @@ Run `python3 index_memory.py` to build `/agent_memory/embeddings.faiss` from `re
 - Serve front-end with instructions
 - Add REST endpoints for memory recall and config management
 - Add systemd support for local deploy without Docker if needed
+
+## Quick Reference
+
+### CLI Commands Cheat Sheet
+
+```bash
+# Single question to local agent
+python3 cli_prompt.py "System status"
+
+# Single question to remote agent
+python3 cli_prompt.py --host your-pi.local "Network check"
+
+# Interactive mode
+python3 cli_prompt.py --interactive
+
+# Status check
+python3 cli_prompt.py --status
+
+# With SSH tunnel (secure)
+# ssh -L 5000:localhost:5000 -p 2222 castlebravo@picklegate.ddns.net
+ssh -L 5000:localhost:5000 -p 2222 castlebravo@picklegate.ddns.net%%
+python3 cli_prompt.py "Secure diagnostic"
+
+# JSON output for automation
+python3 cli_prompt.py --output-format json "System info" | jq '.response'
+```
+
+### Common Diagnostic Questions
+
+```bash
+# System Health
+"What is the current system health?"
+"Show memory usage and CPU load"
+"Check disk space and system temperature"
+
+# Network Diagnostics  
+"Check internet connectivity"
+"Test SSH tunnel status"
+"Scan network interfaces and routing"
+
+# Process Monitoring
+"Show running processes"
+"List open ports and listening services"
+"Check for suspicious processes"
+
+# Historical Analysis
+"Find similar network issues from the past"
+"Search for previous system errors"
+"Show recent diagnostic activities"
+```
+
+### Environment Setup
+
+```bash
+# Add to ~/.bashrc for convenience
+export DIAGNOSTIC_AGENT_HOST="your-pi.local"
+export DIAGNOSTIC_AGENT_PORT="5000"
+export ACTIVATION_WORD="your_secret"
+```
