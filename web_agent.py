@@ -21,14 +21,6 @@ import sys
 from datetime import datetime, timedelta
 from functools import wraps
 
-# Import real diagnostic engine
-try:
-    from diagnostic_agent import execute_diagnostic
-    REAL_DIAGNOSTICS = True
-except ImportError:
-    REAL_DIAGNOSTICS = False
-    logger.warning("Real diagnostic engine not available, using simulation")
-
 # Configure logging with rotation
 logging.basicConfig(
     level=logging.INFO,
@@ -39,6 +31,23 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+# Import diagnostic engines
+try:
+    from diagnostic_agent import execute_diagnostic
+    REAL_DIAGNOSTICS = True
+except ImportError:
+    REAL_DIAGNOSTICS = False
+    logger.warning("Real diagnostic engine not available, using simulation")
+
+# Import smart diagnostic agent
+try:
+    from smart_diagnostic_agent import process_smart_query, smart_agent
+    SMART_AGENT_AVAILABLE = True
+    logger.info("Smart diagnostic agent loaded successfully")
+except ImportError as e:
+    SMART_AGENT_AVAILABLE = False
+    logger.warning(f"Smart diagnostic agent not available: {e}")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MEMORY_DIR = os.path.join(BASE_DIR, "agent_memory")
@@ -211,7 +220,15 @@ def rotate_debug_logs():
         logger.error(f"Error during debug log rotation: {e}")
 
 def execute_diagnostic_query(question):
-    """Execute diagnostic query using real or simulated engine"""
+    """Execute diagnostic query using smart agent or real diagnostics"""
+    
+    # First try the smart agent for natural responses
+    if SMART_AGENT_AVAILABLE:
+        try:
+            return process_smart_query(question)
+        except Exception as e:
+            logger.error(f"Smart diagnostic agent failed: {e}")
+            # Fall back to traditional methods
     
     # Use real diagnostic engine if available
     if REAL_DIAGNOSTICS:
@@ -219,85 +236,25 @@ def execute_diagnostic_query(question):
             return execute_diagnostic(question)
         except Exception as e:
             logger.error(f"Real diagnostic engine failed: {e}")
-            # Fall back to simulation
-            pass
     
-    # Fallback simulation (original code)
-    return simulate_diagnostic_agent(question)
-
-def simulate_diagnostic_agent(question):
-    """Simulate the diagnostic agent's response (fallback)"""
+    # Final fallback - structured response
     timestamp = datetime.now().isoformat()
-    
-    # Log the question
-    memory.log_event(f"User query: {question}", "Processing diagnostic request")
-    
-    # Simulate some basic diagnostic responses
-    if any(keyword in question.lower() for keyword in ['network', 'connection', 'ping', 'dns']):
-        response = f"""[{timestamp}] NETWORK DIAGNOSTIC MODE (Simulated)
+    response = f"""[{timestamp}] DIAGNOSTIC ERROR
 Query: {question}
 
-Checking network connectivity...
-- Interface status: UP
-- Gateway reachable: YES
-- DNS resolution: TESTING...
+Unable to process diagnostic request. Available diagnostic engines are not functioning.
+Please check system logs and ensure diagnostic capabilities are properly installed.
 
-Recommendations:
-1. Check cable connections
-2. Verify IP configuration
-3. Test with different DNS servers
-
-Status: Analysis complete. See detailed logs for troubleshooting steps."""
-        
-        memory.log_event("Network diagnostic", response)
-        return response
+Status: Error - diagnostic engines unavailable."""
     
-    elif any(keyword in question.lower() for keyword in ['status', 'health', 'system']):
-        response = f"""[{timestamp}] SYSTEM STATUS CHECK (Simulated)
-Query: {question}
-
-System Health:
-- CPU Usage: Normal
-- Memory: 65% utilized
-- Storage: 23% full
-- Temperature: 45°C
-
-Agent Status:
-- FAISS Index: Active
-- Memory System: Operational
-- SSH Bridge: {'Enabled' if ssh_bridge_enabled else 'Disabled'}
-
-Status: All systems operational."""
+    # Log the error
+    try:
+        import memory
+        memory.log_event(f"Diagnostic error for query: {question}", response)
+    except:
+        pass
         
-        memory.log_event("System status check", response)
-        return response
-    
-    else:
-        # Search for related past experiences
-        related = faiss_utils.search(question, top_k=3)
-        context = ""
-        if related:
-            context = "\n\nRelated past experiences:\n"
-            for i, entry in enumerate(related, 1):
-                context += f"{i}. {entry.get('task', '')}: {entry.get('result', '')[:100]}...\n"
-        
-        response = f"""[{timestamp}] GENERAL DIAGNOSTIC MODE (Simulated)
-Query: {question}
-
-Processing your request using available diagnostic protocols...
-
-Analysis: Based on the query pattern, this appears to be a general diagnostic request. 
-I'm equipped to help with network troubleshooting, system monitoring, and technical analysis.
-
-{context}
-
-For specific network issues, please mention 'network', 'connection', or related terms.
-For system status, use 'status' or 'health' in your query.
-
-Status: Ready for more specific diagnostic instructions."""
-        
-        memory.log_event(f"General query: {question}", response)
-        return response
+    return response
 
 @app.route('/')
 @error_handler

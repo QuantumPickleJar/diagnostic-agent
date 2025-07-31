@@ -38,13 +38,19 @@ def get_model():
         return None
     if _model is None:
         try:
-            # Check for manually downloaded model first
-            manual_model_dir = os.path.abspath(os.path.join(BASE_DIR, "models", "all-MiniLM-L6-v2"))
-            if os.path.exists(manual_model_dir) and os.listdir(manual_model_dir):
-                print(f"Loading manually downloaded model from {manual_model_dir}")
-                _model = SentenceTransformer(manual_model_dir)
-                print("Manual model loaded successfully")
-                return _model
+            # Check for locally available model first (user has this at /home/diagnostic-agent/models/)
+            local_model_paths = [
+                "/home/diagnostic-agent/models/all-MiniLM-L6-v2",
+                os.path.abspath(os.path.join(BASE_DIR, "models", "all-MiniLM-L6-v2")),
+                os.path.abspath(os.path.join(BASE_DIR, "..", "models", "all-MiniLM-L6-v2"))
+            ]
+            
+            for model_path in local_model_paths:
+                if os.path.exists(model_path) and os.listdir(model_path):
+                    print(f"Loading local model from {model_path}")
+                    _model = SentenceTransformer(model_path)
+                    print("Local model loaded successfully")
+                    return _model
             
             # Check if model is already cached
             cache_dir = os.path.expanduser("~/.cache/sentence_transformers")
