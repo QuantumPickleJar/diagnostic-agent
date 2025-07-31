@@ -5,19 +5,22 @@ Documents the current system configuration for the agent's understanding.
 Creates a knowledge base about hardware, networking, and service setup.
 
 Hardware Requirements:
-- Any system capable of running the diagnostic agent
-- Access to system information in /proc and /sys
+- Raspberry Pi 4 or any system capable of running the diagnostic agent
+- Access to system information in /proc and /sys filesystems
 - Minimum 256MB RAM for configuration discovery
+- Storage access for reading configuration files
 
 Package Requirements:
 - Python 3.7+
 - Standard system utilities: ps, systemctl, ip, lsusb (optional)
-- Access to configuration files in /etc
+- Access to configuration files in /etc directory
+- Reading permissions for system information files
 
 System Dependencies:
 - /proc filesystem for system information
 - systemd for service management information
 - Read access to network configuration files
+- Access to system logs for service status
 """
 import json
 import os

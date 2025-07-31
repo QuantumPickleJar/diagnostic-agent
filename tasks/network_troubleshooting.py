@@ -6,14 +6,15 @@ Focuses on dual-adapter Pi setup with WireGuard tunneling.
 
 Hardware Requirements:
 - Raspberry Pi 4 (recommended) or similar ARM64/x86_64 system
-- Built-in WiFi adapter for WireGuard tunnel
-- External USB WiFi adapter (e.g., Netgear A7000) for home network
+- Built-in WiFi adapter for WireGuard tunnel (wlan0)
+- External USB WiFi adapter (e.g., Netgear A7000, appears as wlx*) for home network
 - Minimum 1GB RAM, 2GB+ recommended for full diagnostics
+- USB 3.0 ports recommended for external adapter performance
 
 Package Requirements:
 - Python 3.7+
 - Standard system tools: ping, nslookup, ip, iptables
-- WireGuard tools: wg, wg-quick
+- WireGuard tools: wg, wg-quick (wireguard-tools package)
 - Network utilities: systemctl, ufw (optional)
 - Docker (if running containerized services)
 
@@ -21,6 +22,14 @@ System Dependencies:
 - Linux kernel with WireGuard support (5.6+ or module)
 - iptables with NAT support
 - systemd for service management
+- /proc and /sys filesystems for network interface information
+- sudo access for privileged network commands
+
+Network Architecture Notes:
+- wlan0 (Pi built-in antenna): Dedicated to WireGuard tunnel traffic
+- wlx* (External Netgear A7000): Used for local network connectivity
+- Split tunneling configuration: Only specific traffic routed through VPN
+- Local services remain accessible through home network adapter
 """
 import json
 import os
