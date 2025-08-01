@@ -50,14 +50,18 @@ show_usage() {
     echo ""
     echo "Options:"
     echo "  --clean     Clean deployment (removes old images and volumes)"
+    echo "  --no-build  Skip Docker build step"
     echo "  --logs      Show container logs"
     echo "  --status    Show container status"
     echo "  --stop      Stop the container"
+    echo "  --smart     Enable smart agent startup"
     echo "  --help      Show this help message"
     echo ""
     echo "Examples:"
     echo "  $0                # Normal deployment"
     echo "  $0 --clean        # Clean deployment"
+    echo "  $0 --smart        # Deploy with smart agent startup"
+    echo "  $0 --no-build     # Skip build step"
     echo "  $0 --logs         # View logs"
     echo "  $0 --status       # Check status"
 }
@@ -104,11 +108,17 @@ CLEAN=false
 LOGS=false
 STATUS=false
 STOP=false
+SMART=false
+NO_BUILD=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --clean)
             CLEAN=true
+            shift
+            ;;
+        --no-build)
+            NO_BUILD=true
             shift
             ;;
         --logs)
@@ -121,6 +131,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --stop)
             STOP=true
+            shift
+            ;;
+        --smart)
+            SMART=true
             shift
             ;;
         --help)
@@ -177,7 +191,9 @@ $DOCKER_COMPOSE down || true
 
 # Build the image
 echo -e "${YELLOW}🔨 Building diagnostic agent image...${NC}"
-if [[ "$CLEAN" == true ]]; then
+if [[ "$NO_BUILD" == true ]]; then
+    echo -e "${GRAY}Skipping build step...${NC}"
+elif [[ "$CLEAN" == true ]]; then
     $DOCKER_COMPOSE build --no-cache
 else
     $DOCKER_COMPOSE build
@@ -212,6 +228,25 @@ done
 
 # Show final status
 show_status
+
+# Test smart agent if requested
+if [[ "$SMART" == true ]]; then
+    echo ""
+    echo -e "${YELLOW}🤖 Testing Smart Agent functionality...${NC}"
+    sleep 5  # Give the agent time to fully initialize
+    
+    # Test if CLI is available and working
+    if command -v python3 &> /dev/null; then
+        echo -e "${CYAN}Testing smart agent query...${NC}"
+        if python3 cli_prompt.py --activation-word PurpleTomato "What model is powering your responses?" 2>/dev/null; then
+            echo -e "${GREEN}✅ Smart agent is responding correctly${NC}"
+        else
+            echo -e "${YELLOW}⚠️  Smart agent test failed - agent may still be initializing${NC}"
+        fi
+    else
+        echo -e "${YELLOW}⚠️  Python3 not available for smart agent testing${NC}"
+    fi
+fi
 
 echo ""
 echo -e "${YELLOW}📋 Recent logs:${NC}"
