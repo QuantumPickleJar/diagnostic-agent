@@ -19,6 +19,12 @@ services:
       - /etc:/host/etc:ro
       # Add Docker socket for container monitoring
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Mount host network and system info for diagnostics
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /etc:/host/etc:ro
+      # Add Docker socket for container monitoring
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       - PYTHONUNBUFFERED=1
       - FLASK_ENV=production
@@ -26,6 +32,7 @@ services:
       - PYTHONPATH=/app
       # Optionally specify TinyLlama model path if available
       - TINYLLAMA_MODEL_PATH=/app/models/tinyllama.gguf
+    command: ["python3", "smart_agent_frontend.py"]
     command: ["python3", "smart_agent_frontend.py"]
     restart: unless-stopped
     # Network mode to access host network stack for diagnostics
@@ -35,7 +42,15 @@ services:
       - NET_ADMIN
       - NET_RAW
       - SYS_ADMIN
+    # Network mode to access host network stack for diagnostics
+    network_mode: "host"
+    privileged: false
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_ADMIN
     healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
       timeout: 15s
