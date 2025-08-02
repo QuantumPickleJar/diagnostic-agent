@@ -66,7 +66,7 @@ USER agent
 RUN mkdir -p /home/agent/.cache/sentence_transformers
 
 # Copy download_model.py for runtime use (will check ./models first, then cache/download as needed)
-COPY download_model.py .
+COPY download_models .
 
 # Copy the run_agent.py script into the container
 COPY run_agent.py .
