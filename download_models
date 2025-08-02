@@ -1,0 +1,202 @@
+#!/bin/bash
+#
+# Download Models - Unified Script
+# ==================================
+# Downloads all required models for the diagnostic agent
+# Supports both development and Pi deployment
+#
+# Models:
+# - TinyLlama 1.1B GGUF (local text generation)  
+# - all-MiniLM-L6-v2 (sentence embeddings)
+#
+# Usage:
+#   ./download_models
+#   ./download_models --check      # Check existing models
+#   ./download_models --pi         # Deploy to Pi after download
+#
+
+set -e
+
+# Parse arguments
+CHECK_ONLY=false
+DEPLOY_TO_PI=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --check)
+            CHECK_ONLY=true
+            shift
+            ;;
+        --pi)
+            DEPLOY_TO_PI=true
+            shift
+            ;;
+        *)
+            echo "Usage: $0 [--check] [--pi]"
+            echo "  --check  Check existing models without downloading"
+            echo "  --pi     Deploy to Pi after successful download"
+            exit 1
+            ;;
+    esac
+done
+
+# Colors
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+echo -e "${GREEN}📦 Diagnostic Agent - Download Models${NC}"
+echo "======================================"
+
+# Check current directory
+if [ ! -f "requirements.txt" ] || [ ! -f "unified_smart_agent.py" ]; then
+    echo -e "${RED}❌ Error: Run this script from the diagnostic-agent directory${NC}"
+    echo "Expected files: requirements.txt, unified_smart_agent.py"
+    exit 1
+fi
+
+# Models directory and files
+MODELS_DIR="models"
+TINYLLAMA_FILE="$MODELS_DIR/tinyllama.gguf"
+SENTENCE_DIR="$MODELS_DIR/all-MiniLM-L6-v2"
+
+# Create models directory
+mkdir -p "$MODELS_DIR"
+
+echo -e "\n${BLUE}📁 Models directory: $(pwd)/$MODELS_DIR${NC}"
+
+# Check function
+check_models() {
+    echo -e "\n${YELLOW}🔍 Checking existing models...${NC}"
+    
+    TINYLLAMA_OK=false
+    SENTENCE_OK=false
+    
+    if [ -f "$TINYLLAMA_FILE" ]; then
+        SIZE_MB=$(du -m "$TINYLLAMA_FILE" | cut -f1)
+        echo -e "  ✅ TinyLlama GGUF: $TINYLLAMA_FILE (${SIZE_MB}MB)"
+        TINYLLAMA_OK=true
+    else
+        echo -e "  ❌ TinyLlama GGUF: Not found"
+    fi
+    
+    if [ -d "$SENTENCE_DIR" ] && [ -f "$SENTENCE_DIR/config.json" ]; then
+        echo -e "  ✅ Sentence Transformer: $SENTENCE_DIR"
+        SENTENCE_OK=true
+    else
+        echo -e "  ❌ Sentence Transformer: Not found"
+    fi
+    
+    if $TINYLLAMA_OK && $SENTENCE_OK; then
+        echo -e "\n${GREEN}🎉 All models present and ready!${NC}"
+        return 0
+    else
+        echo -e "\n${YELLOW}⚠️  Some models missing${NC}"
+        return 1
+    fi
+}
+
+# Run check
+if ! check_models && $CHECK_ONLY; then
+    exit 1
+elif $CHECK_ONLY; then
+    exit 0
+fi
+
+# Download models
+echo -e "\n${YELLOW}⬇️  Starting model downloads...${NC}"
+
+# Download TinyLlama if missing
+if [ ! -f "$TINYLLAMA_FILE" ]; then
+    echo -e "\n${YELLOW}📥 Downloading TinyLlama 1.1B GGUF...${NC}"
+    
+    TINYLLAMA_URL="https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"
+    
+    # Check for download tools
+    if command -v wget >/dev/null 2>&1; then
+        echo "Using wget..."
+        wget --progress=bar:force -O "$TINYLLAMA_FILE" "$TINYLLAMA_URL"
+    elif command -v curl >/dev/null 2>&1; then
+        echo "Using curl..."
+        curl -L --progress-bar -o "$TINYLLAMA_FILE" "$TINYLLAMA_URL"
+    else
+        echo -e "${RED}❌ Error: wget or curl required${NC}"
+        exit 1
+    fi
+    
+    if [ -f "$TINYLLAMA_FILE" ]; then
+        echo -e "${GREEN}✅ TinyLlama downloaded successfully${NC}"
+    else
+        echo -e "${RED}❌ TinyLlama download failed${NC}"
+        exit 1
+    fi
+fi
+
+# Download sentence transformer if missing
+if [ ! -d "$SENTENCE_DIR" ]; then
+    echo -e "\n${YELLOW}📥 Downloading sentence transformer...${NC}"
+    
+    # Check for Python and sentence-transformers
+    if ! python3 -c "import sentence_transformers" 2>/dev/null; then
+        echo -e "${YELLOW}⚠️  Installing sentence-transformers...${NC}"
+        pip3 install sentence-transformers
+    fi
+    
+    python3 -c "
+import os
+from sentence_transformers import SentenceTransformer
+
+model_path = '$SENTENCE_DIR'
+print('📥 Downloading all-MiniLM-L6-v2...')
+model = SentenceTransformer('all-MiniLM-L6-v2')
+model.save(model_path)
+print('✅ Sentence transformer downloaded')
+
+# Verify
+if os.path.exists(model_path):
+    print(f'📁 Saved to: {model_path}')
+else:
+    print('❌ Download verification failed')
+    exit(1)
+"
+
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✅ Sentence transformer downloaded successfully${NC}"
+    else
+        echo -e "${RED}❌ Sentence transformer download failed${NC}"
+        exit 1
+    fi
+fi
+
+# Final verification
+echo -e "\n${YELLOW}🔍 Verifying downloads...${NC}"
+if check_models; then
+    echo -e "\n${GREEN}🎉 All models downloaded successfully!${NC}"
+    
+    # Show total size
+    TOTAL_SIZE=$(du -sh "$MODELS_DIR" | cut -f1)
+    echo -e "${BLUE}📊 Total models size: $TOTAL_SIZE${NC}"
+    
+    # Deploy to Pi if requested
+    if $DEPLOY_TO_PI; then
+        echo -e "\n${YELLOW}🚀 Deploying to Pi...${NC}"
+        if [ -f "deploy_to_pi.ps1" ]; then
+            powershell.exe -ExecutionPolicy Bypass -File deploy_to_pi.ps1 -RestartService
+        elif [ -f "deploy_to_pi.sh" ]; then
+            ./deploy_to_pi.sh --restart
+        else
+            echo -e "${YELLOW}⚠️  No deploy_to_pi script found, deploy manually${NC}"
+        fi
+    fi
+    
+    echo -e "\n${GREEN}🎯 Next steps:${NC}"
+    echo "  1. Test locally: python3 unified_smart_agent.py"
+    echo "  2. Deploy to Pi: ./deploy_to_pi.ps1 -RestartService"
+    echo "  3. Access web interface at http://picklegate.ddns.net:5000"
+    
+else
+    echo -e "\n${RED}❌ Model verification failed${NC}"
+    exit 1
+fi
