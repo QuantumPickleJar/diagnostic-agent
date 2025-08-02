@@ -1,0 +1,22 @@
+# Fast requirements - Using pre-built wheels when available
+--extra-index-url https://www.piwheels.org/simple/
+--trusted-host www.piwheels.org
+
+# Core dependencies with fallback versions for ARM
+faiss-cpu>=1.9.0
+flask>=3.0.0
+numpy>=2.0.0
+sentence-transformers>=3.0.0
+
+# Try specific llama-cpp-python version with fallback
+llama-cpp-python>=0.2.27
+
+# Standard packages (usually have ARM wheels)
+requests>=2.31.0
+python-dotenv>=1.0.0
+psutil>=5.9.0
+
+# Dependencies that might be missing from wheels
+packaging>=21.0
+setuptools>=65.0
+wheel>=0.37.0

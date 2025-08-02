@@ -6,3 +6,7 @@ llama-cpp-python>=0.2.27
 requests>=2.31.0
 python-dotenv>=1.0.0
 psutil>=5.9.0
+# Build dependencies
+packaging>=21.0
+setuptools>=65.0
+wheel>=0.37.0
