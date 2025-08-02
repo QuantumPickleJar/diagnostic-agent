@@ -1,94 +1,87 @@
-# Use Python 3.11 slim image for efficiency on Raspberry Pi
-FROM python:3.11-slim
+# Multi-stage build for dramatic size and time reduction
+# ====================================================
 
-# Set working directory
-WORKDIR /app
+# Stage 1: Build dependencies (this layer gets cached)
+FROM python:3.11-slim as builder
 
-# Install system dependencies and clean up in single layer to reduce image size
-RUN apt-get update && apt-get install -y \
+# Install build dependencies in one layer
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
+    libblas-dev \
+    liblapack-dev \
+    gfortran \
+    cmake \
+    pkg-config \
+    git \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Copy requirements and install Python packages
+COPY requirements.txt /tmp/
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade pip && \
+    pip wheel --no-cache-dir --no-deps --wheel-dir /wheels \
+    -r /tmp/requirements.txt
+
+# Stage 2: Runtime image (much smaller)
+FROM python:3.11-slim
+
+# Install only runtime dependencies (no build tools!)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     iputils-ping \
     net-tools \
     iproute2 \
-    iptables \
-    systemctl \
     procps \
     dnsutils \
-    wget \
-    git \
-    sudo \
-    libblas-dev \
-    liblapack-dev \
-    gfortran \
     ca-certificates \
-    lsb-release \
-    && curl -fsSL https://get.docker.com -o get-docker.sh \
-    && sh get-docker.sh \
-    && rm get-docker.sh \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Copy requirements first for better Docker layer caching
-COPY requirements.txt .
+# Install Docker CLI separately (much faster than full Docker installation)
+RUN curl -fsSL https://download.docker.com/linux/static/stable/$(uname -m)/docker-20.10.24.tgz | \
+    tar -xzf - --strip-components=1 -C /usr/local/bin docker/docker && \
+    chmod +x /usr/local/bin/docker
 
-# Install Python dependencies with caching for faster rebuilds
+# Copy pre-built wheels from builder stage
+COPY --from=builder /wheels /wheels
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir --upgrade pip && \
-    # Install numpy first as it's a dependency for many packages
-    pip install --no-cache-dir "numpy>=2.0.0" && \
-    # Install FAISS with specific handling for ARM
-    pip install --no-cache-dir "faiss-cpu>=1.9.0" --no-build-isolation || \
-    pip install --no-cache-dir "faiss-cpu==1.7.4" --no-build-isolation || \
-    echo "FAISS installation failed, will use fallback" && \
-    # Install all remaining requirements from requirements.txt for better caching
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir --no-index --find-links /wheels \
+    /wheels/*.whl && \
+    rm -rf /wheels
 
-# Copy application files
-COPY . .
+# Create non-root user early
+RUN useradd -m -u 1000 agent && \
+    groupadd -f docker && \
+    usermod -aG docker agent
 
-# Create agent_memory directory with proper permissions and structure
-RUN mkdir -p /app/agent_memory && \
-    mkdir -p /app/agent_memory/archived_sessions && \
-    mkdir -p /app/logs && \
-    chmod 755 /app/agent_memory && \
-    chmod 755 /app/logs
+# Set working directory and switch user
+WORKDIR /app
+USER agent
 
-# Ensure static_config.json exists with correct structure
+# Create necessary directories
+RUN mkdir -p /home/agent/.cache/sentence_transformers \
+    /app/agent_memory \
+    /app/agent_memory/archived_sessions \
+    /app/logs
+
+# Copy application files (this layer changes most often, so put it last)
+COPY --chown=agent:agent . .
+
+# Create default config if it doesn't exist
 RUN if [ ! -f /app/agent_memory/static_config.json ]; then \
     echo '{"mode":"local","local_model_path":"/app/models/tinyllama.gguf","system_prompt_file":"system_prompt.txt","remote_dev":{"user":"user","ip":"192.168.1.100","port":22},"logging":{"level":"INFO","max_log_size_mb":50,"max_log_days":30},"memory":{"faiss_index_path":"/app/agent_memory/embeddings.faiss","recall_log_path":"/app/agent_memory/recall_log.jsonl"},"system_info":{"hostname":"diagnostic-agent","platform":"raspberry-pi","last_updated":"2025-07-30T00:00:00Z"}}' > /app/agent_memory/static_config.json; \
     fi
 
-# Create a non-root user for security and add to docker group
-RUN useradd -m -u 1000 agent && \
-    groupadd -f docker && \
-    usermod -aG docker agent && \
-    chown -R agent:agent /app
+# Environment variables
+ENV PYTHONUNBUFFERED=1 \
+    FLASK_ENV=production \
+    PYTHONDONTWRITEBYTECODE=1
 
-# Switch to agent user before downloading model to use correct cache location
-USER agent
-
-# Create cache directory structure
-RUN mkdir -p /home/agent/.cache/sentence_transformers
-
-# Copy download_model.py for runtime use (will check ./models first, then cache/download as needed)
-COPY download_models .
-
-# Copy the run_agent.py script into the container
-COPY run_agent.py .
-
-# Expose port 5000
-EXPOSE 5000
-
-# Health check for container orchestration with better reliability
+# Health check
 HEALTHCHECK --interval=30s --timeout=15s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:5000/health || exit 1
 
-# Environment variables for container optimization
-ENV PYTHONUNBUFFERED=1
-ENV FLASK_ENV=production
-ENV PYTHONDONTWRITEBYTECODE=1
-
-# Run the web application
+EXPOSE 5000
 CMD ["python", "web_agent.py"]
