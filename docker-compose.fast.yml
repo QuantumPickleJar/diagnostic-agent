@@ -1,0 +1,60 @@
+services:
+  diagnostic-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.fast
+    container_name: diagnostic-journalist-fast
+    ports:
+      - "5000:5000"
+    volumes:
+      # Persist agent memory across container restarts
+      - agent_memory:/app/agent_memory
+      # Mount logs for external monitoring if needed
+      - ./logs:/app/logs
+      # Mount models directory for TinyLlama and other local models
+      - ./models:/app/models
+      # Cache for sentence transformer models to speed up restarts
+      - model_cache:/home/agent/.cache
+      # Mount host network and system info for diagnostics
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /etc:/host/etc:ro
+      # Add Docker socket for container monitoring (with proper permissions)
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+    environment:
+      - PYTHONUNBUFFERED=1
+      - FLASK_ENV=development
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONPATH=/app
+      # Optionally specify TinyLlama model path if available
+      - TINYLLAMA_MODEL_PATH=/app/models/tinyllama.gguf
+      # Host system paths for diagnostics
+      - HOST_PROC_PATH=/host/proc
+      - HOST_SYS_PATH=/host/sys
+      - HOST_ETC_PATH=/host/etc
+    command: ["python3", "web_agent.py"]
+    restart: unless-stopped
+    # Network mode to access host network stack for diagnostics
+    network_mode: "host"
+    privileged: false
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_ADMIN
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 30s  # Faster start for development
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  agent_memory:
+    driver: local
+  model_cache:
+    driver: local
