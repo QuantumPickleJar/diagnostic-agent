@@ -46,8 +46,27 @@
       background-color: #1e1e1e;
       padding: 1em;
       border: 1px solid #00ff88;
-      min-height: 200px;
+      min-height: 300px;
+      max-height: 400px;
       margin-top: 1em;
+      overflow-y: auto;
+      font-size: 0.9em;
+    }
+    .chat-message {
+      margin-bottom: 1em;
+      padding: 0.5em;
+      border-left: 3px solid #00ff88;
+    }
+    .chat-user {
+      color: #00ff88;
+      font-weight: bold;
+    }
+    .chat-agent {
+      color: #88ff88;
+    }
+    .chat-timestamp {
+      color: #666;
+      font-size: 0.8em;
     }
     .tabs {
       display: flex;
@@ -82,7 +101,12 @@
       <button onclick="toggleSSH()">Toggle SSH Bridge</button>
     </div>
 
-    <div class="output" id="output"></div>
+    <div class="output" id="output">
+      <div class="chat-message">
+        <span class="chat-agent">>_ System:</span> <span class="chat-timestamp">[Ready]</span><br>
+        Diagnostic Journalist initialized. Type your diagnostic queries below.
+      </div>
+    </div>
 
     <div class="tabs">
       <button class="tab-button" onclick="toggleLog()">📜 View Recall Log</button>
@@ -103,7 +127,23 @@
       const cmd = document.getElementById('command').value;
       if (!cmd.trim()) return;
       
-      document.getElementById('output').textContent = 'Processing...';
+      const output = document.getElementById('output');
+      const timestamp = new Date().toLocaleTimeString();
+      
+      // Add user message
+      const userMsg = document.createElement('div');
+      userMsg.className = 'chat-message';
+      userMsg.innerHTML = `<span class="chat-user">>_ You:</span> <span class="chat-timestamp">[${timestamp}]</span><br>${cmd}`;
+      output.appendChild(userMsg);
+      
+      // Add processing message
+      const processingMsg = document.createElement('div');
+      processingMsg.className = 'chat-message';
+      processingMsg.innerHTML = `<span class="chat-agent">>_ Agent:</span> <span class="chat-timestamp">[Processing...]</span><br>Analyzing request...`;
+      output.appendChild(processingMsg);
+      
+      // Scroll to bottom
+      output.scrollTop = output.scrollHeight;
       
       try {
         const res = await fetch('/ask', {
@@ -113,15 +153,35 @@
         });
         const data = await res.json();
         
+        // Remove processing message
+        output.removeChild(processingMsg);
+        
+        // Add agent response
+        const responseMsg = document.createElement('div');
+        responseMsg.className = 'chat-message';
+        const responseTimestamp = new Date().toLocaleTimeString();
+        
         if (data.error) {
-          document.getElementById('output').textContent = `Error: ${data.error}`;
+          responseMsg.innerHTML = `<span class="chat-agent">>_ Agent:</span> <span class="chat-timestamp">[${responseTimestamp}] ERROR</span><br>Error: ${data.error}`;
         } else {
-          document.getElementById('output').textContent = data.response;
+          responseMsg.innerHTML = `<span class="chat-agent">>_ Agent:</span> <span class="chat-timestamp">[${responseTimestamp}]</span><br>${data.response}`;
         }
+        output.appendChild(responseMsg);
+        
       } catch (error) {
-        document.getElementById('output').textContent = `Connection error: ${error.message}`;
+        // Remove processing message
+        output.removeChild(processingMsg);
+        
+        // Add error message
+        const errorMsg = document.createElement('div');
+        errorMsg.className = 'chat-message';
+        const errorTimestamp = new Date().toLocaleTimeString();
+        errorMsg.innerHTML = `<span class="chat-agent">>_ Agent:</span> <span class="chat-timestamp">[${errorTimestamp}] CONNECTION ERROR</span><br>Connection error: ${error.message}`;
+        output.appendChild(errorMsg);
       }
       
+      // Scroll to bottom and clear input
+      output.scrollTop = output.scrollHeight;
       document.getElementById('command').value = '';
     }
 

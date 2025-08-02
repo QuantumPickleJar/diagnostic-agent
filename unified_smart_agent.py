@@ -271,31 +271,56 @@ Be conversational, helpful, and concise. Give specific answers based on the diag
     def _check_container_status(self):
         """
         Check Docker container status
-        Requirements: docker command available, user in docker group
+        Requirements: docker command available or docker socket mounted
         """
         try:
+            # First try docker command
             result = subprocess.run(['docker', 'ps', '-a', '--format', 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'], 
                                   capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
                 return f"Container status:\n{result.stdout}"
             else:
-                return "Docker not available or permission denied"
+                # Fallback: check if docker socket is mounted
+                if os.path.exists('/var/run/docker.sock'):
+                    return "Docker socket available but docker command not found in container"
+                else:
+                    return "Docker not available (container environment)"
         except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.SubprocessError) as e:
             return f"Cannot check containers: {e}"
     
     def _check_system_status(self):
         """
         Check system memory, CPU, and load
-        Requirements: /proc filesystem (standard on Linux)
+        Requirements: /proc filesystem (standard on Linux) or mounted host /proc
         """
         status_parts = []
         
-        # Memory usage using psutil
+        # Check if we're in a container with mounted host filesystem
+        host_proc = os.environ.get('HOST_PROC_PATH', '/host/proc')
+        proc_path = host_proc if os.path.exists(host_proc) else '/proc'
+        
+        # Memory usage using psutil (should work in container)
         try:
             memory = psutil.virtual_memory()
             status_parts.append(f"Memory: {memory.percent}% used ({memory.used // (1024**3):.1f}GB / {memory.total // (1024**3):.1f}GB)")
         except Exception as e:
-            status_parts.append(f"Memory: unavailable ({e})")
+            # Fallback: read from proc/meminfo
+            try:
+                meminfo_path = os.path.join(proc_path, 'meminfo')
+                if os.path.exists(meminfo_path):
+                    with open(meminfo_path, 'r') as f:
+                        lines = f.readlines()
+                        mem_total = mem_free = mem_available = 0
+                        for line in lines:
+                            if line.startswith('MemTotal:'):
+                                mem_total = int(line.split()[1]) * 1024  # Convert KB to bytes
+                            elif line.startswith('MemAvailable:'):
+                                mem_available = int(line.split()[1]) * 1024
+                        if mem_total > 0:
+                            used_percent = ((mem_total - mem_available) / mem_total) * 100
+                            status_parts.append(f"Memory: {used_percent:.1f}% used ({(mem_total - mem_available) // (1024**3):.1f}GB / {mem_total // (1024**3):.1f}GB)")
+            except Exception:
+                status_parts.append(f"Memory: unavailable ({e})")
         
         # CPU usage
         try:
@@ -308,17 +333,28 @@ Be conversational, helpful, and concise. Give specific answers based on the diag
         try:
             load_avg = os.getloadavg()[0]
             status_parts.append(f"Load: {load_avg:.2f}")
-        except Exception as e:
-            status_parts.append(f"Load: unavailable ({e})")
-        
-        # CPU temperature (Pi specific)
-        try:
-            with open('/sys/class/thermal/thermal_zone0/temp', 'r') as f:
-                temp_millidegree = int(f.read().strip())
-                temp_celsius = temp_millidegree / 1000
-                status_parts.append(f"CPU temp: {temp_celsius:.1f}°C")
         except Exception:
-            pass  # Temperature not critical for status
+            # Fallback: read from proc/loadavg
+            try:
+                loadavg_path = os.path.join(proc_path, 'loadavg')
+                if os.path.exists(loadavg_path):
+                    with open(loadavg_path, 'r') as f:
+                        load_avg = float(f.read().split()[0])
+                        status_parts.append(f"Load: {load_avg:.2f}")
+            except Exception:
+                pass
+        
+        # CPU temperature (Pi specific) - try both host and container paths
+        for thermal_path in ['/host/sys/class/thermal/thermal_zone0/temp', '/sys/class/thermal/thermal_zone0/temp']:
+            try:
+                if os.path.exists(thermal_path):
+                    with open(thermal_path, 'r') as f:
+                        temp_millidegree = int(f.read().strip())
+                        temp_celsius = temp_millidegree / 1000
+                        status_parts.append(f"CPU temp: {temp_celsius:.1f}°C")
+                    break
+            except Exception:
+                continue
         
         return "\n".join(status_parts)
     
