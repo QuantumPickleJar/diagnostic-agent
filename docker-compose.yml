@@ -1,9 +1,9 @@
 services:
   diagnostic-agent:
     build: .
-    container_name: enhanced-diagnostic-agent
+    container_name: diagnostic-journalist
     ports:
-      - "5000:5000"
+      - "8080:8080"
     volumes:
       # Persist agent memory across container restarts
       - agent_memory:/app/agent_memory
@@ -21,9 +21,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       - PYTHONUNBUFFERED=1
-      - HOST=0.0.0.0
-      - PORT=5000
-      - DEBUG=false
+      - FLASK_ENV=production
       - PYTHONDONTWRITEBYTECODE=1
       - PYTHONPATH=/app
       # Optionally specify TinyLlama model path if available
