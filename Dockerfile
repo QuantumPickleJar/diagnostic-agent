@@ -11,6 +11,14 @@ RUN apt-get update && apt-get install -y \
     curl \
     iputils-ping \
     net-tools \
+    iproute2 \
+    iptables \
+    systemctl \
+    procps \
+    dnsutils \
+    wget \
+    git \
+    sudo \
     libblas-dev \
     liblapack-dev \
     gfortran \
