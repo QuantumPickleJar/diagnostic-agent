@@ -42,9 +42,9 @@ except ImportError:
 
 # Import smart diagnostic agent
 try:
-    from smart_diagnostic_agent import process_smart_query, smart_agent
+    from unified_smart_agent import process_smart_query, smart_agent
     SMART_AGENT_AVAILABLE = True
-    logger.info("Smart diagnostic agent loaded successfully")
+    logger.info("Unified smart diagnostic agent loaded successfully")
 except ImportError as e:
     SMART_AGENT_AVAILABLE = False
     logger.warning(f"Smart diagnostic agent not available: {e}")
@@ -54,7 +54,7 @@ MEMORY_DIR = os.path.join(BASE_DIR, "agent_memory")
 CONFIG_FILE = os.path.join(MEMORY_DIR, "static_config.json")
 RECALL_FILE = os.path.join(MEMORY_DIR, "recall_log.jsonl")
 ARCHIVE_DIR = os.path.join(MEMORY_DIR, "archived_sessions")
-MAX_LOG_SIZE_MB = 50
+MAX_LOG_SIZE_MB = 250
 MAX_LOG_DAYS = 30
 LOG_ROTATION_SIZE_MB = 100
 
@@ -230,12 +230,12 @@ def execute_diagnostic_query(question):
             logger.error(f"Smart diagnostic agent failed: {e}")
             # Fall back to traditional methods
     
-    # Use real diagnostic engine if available
+    # Use diagnostic engine if available
     if REAL_DIAGNOSTICS:
         try:
             return execute_diagnostic(question)
         except Exception as e:
-            logger.error(f"Real diagnostic engine failed: {e}")
+            logger.error(f"Diagnostic engine failed: {e}")
     
     # Final fallback - structured response
     timestamp = datetime.now().isoformat()
