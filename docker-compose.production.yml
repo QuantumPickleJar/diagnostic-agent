@@ -1,6 +1,14 @@
 services:
   diagnostic-agent:
-    build: .
+    build: 
+      context: .
+      dockerfile: Dockerfile
+      # Enable BuildKit for faster, more efficient builds
+      cache_from:
+        - python:3.11-slim
+      # Use build arguments to improve caching
+      args:
+        BUILDKIT_INLINE_CACHE: 1
     container_name: diagnostic-journalist
     ports:
       - "5000:5000"
@@ -24,6 +32,9 @@ services:
       - FLASK_ENV=production
       - PYTHONDONTWRITEBYTECODE=1
       - PYTHONPATH=/app
+      # Docker BuildKit for faster builds
+      - DOCKER_BUILDKIT=1
+      - COMPOSE_DOCKER_CLI_BUILD=1
       # Optionally specify TinyLlama model path if available
       - TINYLLAMA_MODEL_PATH=/app/models/tinyllama.gguf
       # Host system paths for diagnostics
@@ -59,9 +70,6 @@ services:
           memory: 512M
     security_opt:
       - no-new-privileges:true
-    # Read-only root filesystem for enhanced security (with tmpfs for temp files)
-    # Temporarily disabled for development - re-enable for production
-    # read_only: true
     tmpfs:
       - /tmp
       - /var/tmp
