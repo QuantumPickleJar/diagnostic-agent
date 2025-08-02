@@ -22,6 +22,11 @@ RUN apt-get update && apt-get install -y \
     libblas-dev \
     liblapack-dev \
     gfortran \
+    ca-certificates \
+    lsb-release \
+    && curl -fsSL https://get.docker.com -o get-docker.sh \
+    && sh get-docker.sh \
+    && rm get-docker.sh \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -55,8 +60,10 @@ RUN if [ ! -f /app/agent_memory/static_config.json ]; then \
     echo '{"mode":"local","local_model_path":"/app/models/tinyllama.gguf","system_prompt_file":"system_prompt.txt","remote_dev":{"user":"user","ip":"192.168.1.100","port":22},"logging":{"level":"INFO","max_log_size_mb":50,"max_log_days":30},"memory":{"faiss_index_path":"/app/agent_memory/embeddings.faiss","recall_log_path":"/app/agent_memory/recall_log.jsonl"},"system_info":{"hostname":"diagnostic-agent","platform":"raspberry-pi","last_updated":"2025-07-30T00:00:00Z"}}' > /app/agent_memory/static_config.json; \
     fi
 
-# Create a non-root user for security
+# Create a non-root user for security and add to docker group
 RUN useradd -m -u 1000 agent && \
+    groupadd -f docker && \
+    usermod -aG docker agent && \
     chown -R agent:agent /app
 
 # Switch to agent user before downloading model to use correct cache location
