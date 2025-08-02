@@ -11,7 +11,7 @@ param(
 
 # Function to show usage
 function Show-Usage {
-    Write-Host "🚀 Diagnostic Agent Deployment" -ForegroundColor Green
+    Write-Host "Diagnostic Agent Deployment" -ForegroundColor Green
     Write-Host ""
     Write-Host "Usage: .\deploy.ps1 [OPTIONS]" -ForegroundColor Yellow
     Write-Host ""
@@ -35,7 +35,7 @@ function Test-Docker {
         return $true
     }
     catch {
-        Write-Host "❌ Docker not running. Please start Docker Desktop first." -ForegroundColor Red
+        Write-Host "ERR: Docker not running. Please start Docker Desktop first." -ForegroundColor Red
         exit 1
     }
 }
@@ -52,7 +52,7 @@ function Get-DockerCompose {
             return "docker-compose"
         }
         catch {
-            Write-Host "❌ Docker Compose not available." -ForegroundColor Red
+            Write-Host "ERR: Docker Compose not available." -ForegroundColor Red
             exit 1
         }
     }
@@ -75,28 +75,28 @@ function Get-LocalIP {
 
 # Function to show status
 function Show-Status {
-    Write-Host "📊 Container Status:" -ForegroundColor Blue
+    Write-Host "Container Status:" -ForegroundColor Blue
     & $DockerCompose ps
     
     Write-Host ""
-    Write-Host "🌐 Endpoints:" -ForegroundColor Blue
+    Write-Host "Endpoints:" -ForegroundColor Blue
     $localIP = Get-LocalIP
     Write-Host "   Main interface: http://$localIP:5000" -ForegroundColor Cyan
     Write-Host "   Health check:   http://$localIP:5000/health" -ForegroundColor Cyan
     Write-Host "   Status:         http://$localIP:5000/status" -ForegroundColor Cyan
     
     Write-Host ""
-    Write-Host "🔍 Testing health endpoint..." -ForegroundColor Yellow
+    Write-Host "Testing health endpoint..." -ForegroundColor Yellow
     try {
         $response = Invoke-WebRequest -Uri "http://localhost:5000/health" -UseBasicParsing -TimeoutSec 5
         if ($response.StatusCode -eq 200) {
-            Write-Host "✅ Service is healthy" -ForegroundColor Green
+            Write-Host "Service is healthy" -ForegroundColor Green
         } else {
-            Write-Host "❌ Service returned status: $($response.StatusCode)" -ForegroundColor Red
+            Write-Host "ERR: Service returned status: $($response.StatusCode)" -ForegroundColor Red
         }
     }
     catch {
-        Write-Host "❌ Service is not responding" -ForegroundColor Red
+        Write-Host "ERR: Service is not responding" -ForegroundColor Red
     }
 }
 
@@ -107,19 +107,19 @@ if ($Help) {
 }
 
 # Check Docker
-Write-Host "🚀 Diagnostic Agent Deployment" -ForegroundColor Green
+Write-Host "Diagnostic Agent Deployment" -ForegroundColor Green
 Test-Docker | Out-Null
 $DockerCompose = Get-DockerCompose
 
 # Handle different operations
 if ($Stop) {
-    Write-Host "🛑 Stopping Diagnostic Agent..." -ForegroundColor Yellow
+    Write-Host "Stopping Diagnostic Agent..." -ForegroundColor Yellow
     & $DockerCompose down
     exit 0
 }
 
 if ($Logs) {
-    Write-Host "📋 Showing logs (Ctrl+C to exit):" -ForegroundColor Yellow
+    Write-Host "Showing logs (Ctrl+C to exit):" -ForegroundColor Yellow
     & $DockerCompose logs -f
     exit 0
 }
@@ -130,7 +130,7 @@ if ($Status) {
 }
 
 # Main deployment process
-Write-Host "🔧 Starting deployment process..." -ForegroundColor Yellow
+Write-Host "Starting deployment process..." -ForegroundColor Yellow
 
 # Create necessary directories
 if (!(Test-Path "logs")) { New-Item -ItemType Directory -Name "logs" | Out-Null }
@@ -138,18 +138,18 @@ if (!(Test-Path "models")) { New-Item -ItemType Directory -Name "models" | Out-N
 
 # Clean deployment if requested
 if ($Clean) {
-    Write-Host "🧹 Performing clean deployment..." -ForegroundColor Yellow
+    Write-Host "Performing clean deployment..." -ForegroundColor Yellow
     & $DockerCompose down
     docker image prune -f
     docker volume prune -f
 }
 
 # Stop existing containers
-Write-Host "🛑 Stopping existing containers..." -ForegroundColor Yellow
+Write-Host "Stopping existing containers..." -ForegroundColor Yellow
 & $DockerCompose down
 
 # Build the image
-Write-Host "🔨 Building diagnostic agent image..." -ForegroundColor Yellow
+Write-Host "Building diagnostic agent image..." -ForegroundColor Yellow
 if ($Clean) {
     & $DockerCompose build --no-cache
 } else {
@@ -157,11 +157,11 @@ if ($Clean) {
 }
 
 # Start the container
-Write-Host "▶️  Starting diagnostic agent container..." -ForegroundColor Yellow
+Write-Host "Starting diagnostic agent container..." -ForegroundColor Yellow
 & $DockerCompose up -d
 
 # Wait for container to be healthy
-Write-Host "⏳ Waiting for container to be healthy..." -ForegroundColor Yellow
+Write-Host "Waiting for container to be healthy..." -ForegroundColor Yellow
 $maxAttempts = 30
 $attempt = 0
 
@@ -173,7 +173,7 @@ do {
         $containerStatus = & $DockerCompose ps --format "table {{.State}}" | Select-String "healthy"
         
         if ($containerStatus) {
-            Write-Host "✅ Diagnostic agent is running and healthy!" -ForegroundColor Green
+            Write-Host "Diagnostic agent is running and healthy!" -ForegroundColor Green
             break
         }
     }
@@ -182,8 +182,8 @@ do {
     }
     
     if ($attempt -eq $maxAttempts) {
-        Write-Host "❌ Container failed to become healthy after $maxAttempts attempts" -ForegroundColor Red
-        Write-Host "📋 Checking logs..." -ForegroundColor Yellow
+        Write-Host "ERR: Container failed to become healthy after $maxAttempts attempts" -ForegroundColor Red
+        Write-Host "Checking logs..." -ForegroundColor Yellow
         & $DockerCompose logs --tail=50
         exit 1
     }
@@ -195,12 +195,12 @@ do {
 Show-Status
 
 Write-Host ""
-Write-Host "📋 Recent logs:" -ForegroundColor Yellow
+Write-Host "Recent logs:" -ForegroundColor Yellow
 & $DockerCompose logs --tail=10
 
 Write-Host ""
-Write-Host "✅ Deployment complete!" -ForegroundColor Green
-Write-Host "💡 Use '.\deploy.ps1 -Logs' to view logs" -ForegroundColor Gray
-Write-Host "💡 Use '.\deploy.ps1 -Status' to check status" -ForegroundColor Gray
-Write-Host "💡 Use '.\deploy.ps1 -Stop' to stop the service" -ForegroundColor Gray
-Write-Host "💡 Use '.\deploy.ps1 -Clean' for clean deployment" -ForegroundColor Gray
+Write-Host "Deployment complete!" -ForegroundColor Green
+Write-Host "Use '.\deploy.ps1 -Logs' to view logs" -ForegroundColor Gray
+Write-Host "Use '.\deploy.ps1 -Status' to check status" -ForegroundColor Gray
+Write-Host "Use '.\deploy.ps1 -Stop' to stop the service" -ForegroundColor Gray
+Write-Host "Use '.\deploy.ps1 -Clean' for clean deployment" -ForegroundColor Gray

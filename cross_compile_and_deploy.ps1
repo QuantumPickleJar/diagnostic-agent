@@ -41,7 +41,7 @@ $DOCKERFILE = if ($UseProduction) { "Dockerfile.production" } else { "Dockerfile
 $BUILD_TAG = if ($UseProduction) { "production" } else { "fast" }
 $FULL_IMAGE_NAME = "${IMAGE_NAME}:${BUILD_TAG}-arm64"
 
-Write-Host "🚀 Cross-Compilation Deployment Pipeline" -ForegroundColor Cyan
+Write-Host "Cross-Compilation Deployment Pipeline" -ForegroundColor Cyan
 Write-Host "=========================================" -ForegroundColor Cyan
 Write-Host "Target: $PI_USER@$PI_HOST:$PI_PORT" -ForegroundColor Yellow
 Write-Host "Dockerfile: $DOCKERFILE" -ForegroundColor Yellow
@@ -49,7 +49,7 @@ Write-Host "Image: $FULL_IMAGE_NAME" -ForegroundColor Yellow
 Write-Host ""
 
 if (-not $SkipBuild) {
-    Write-Host "🏗️ Building ARM64 image on dev machine..." -ForegroundColor Yellow
+    Write-Host "Building ARM64 image on dev machine..." -ForegroundColor Yellow
     Write-Host "This will be much faster than building on Pi!" -ForegroundColor Green
     
     try {
@@ -70,33 +70,33 @@ if (-not $SkipBuild) {
             throw "Build failed with exit code $LASTEXITCODE"
         }
         
-        Write-Host "✅ ARM64 image built successfully!" -ForegroundColor Green
+        Write-Host "ARM64 image built successfully!" -ForegroundColor Green
     } catch {
-        Write-Host "❌ Build failed: $_" -ForegroundColor Red
+        Write-Host "ERR: Build failed: $_" -ForegroundColor Red
         exit 1
     }
     
     Write-Host ""
-    Write-Host "📦 Exporting image for transfer..." -ForegroundColor Yellow
+    Write-Host "Exporting image for transfer..." -ForegroundColor Yellow
     
     # Export image to tar file
     $tarFile = "${IMAGE_NAME}_${BUILD_TAG}_arm64.tar"
     try {
         docker save $FULL_IMAGE_NAME -o $tarFile
-        Write-Host "✅ Image exported to $tarFile" -ForegroundColor Green
+        Write-Host "Image exported to $tarFile" -ForegroundColor Green
     } catch {
-        Write-Host "❌ Export failed: $_" -ForegroundColor Red
+        Write-Host "ERR: Export failed: $_" -ForegroundColor Red
         exit 1
     }
 }
 
 Write-Host ""
-Write-Host "🌐 Deploying to Raspberry Pi..." -ForegroundColor Yellow
+Write-Host "Deploying to Raspberry Pi..." -ForegroundColor Yellow
 
 try {
     if (-not $SkipBuild) {
         # Transfer tar file to Pi
-        Write-Host "📤 Transferring image to Pi..." -ForegroundColor Cyan
+        Write-Host "Transferring image to Pi..." -ForegroundColor Cyan
         $scpCommand = @("scp", "-P", $PI_PORT, $tarFile, "${PI_USER}@${PI_HOST}:~/")
         & $scpCommand[0] $scpCommand[1..($scpCommand.Length-1)]
         
@@ -105,7 +105,7 @@ try {
         }
         
         # Load image on Pi
-        Write-Host "📥 Loading image on Pi..." -ForegroundColor Cyan
+        Write-Host "Loading image on Pi..." -ForegroundColor Cyan
         $sshLoadCommand = @(
             "ssh", "-p", $PI_PORT, "${PI_USER}@${PI_HOST}",
             "docker load -i ~/$tarFile && rm ~/$tarFile"
@@ -118,7 +118,7 @@ try {
     }
     
     # Deploy on Pi
-    Write-Host "🚀 Deploying container on Pi..." -ForegroundColor Cyan
+    Write-Host "Deploying container on Pi..." -ForegroundColor Cyan
     
     $composeFile = if ($UseProduction) { "docker-compose.yml" } else { "docker-compose.fast.yml" }
     
@@ -141,22 +141,22 @@ try {
         throw "Deployment failed"
     }
     
-    Write-Host "✅ Deployment successful!" -ForegroundColor Green
+    Write-Host "Deployment successful!" -ForegroundColor Green
     
     # Clean up local tar file
     if (-not $SkipBuild -and (Test-Path $tarFile)) {
         Remove-Item $tarFile
-        Write-Host "🧹 Cleaned up local tar file" -ForegroundColor Gray
+        Write-Host "Cleaned up local tar file" -ForegroundColor Gray
     }
     
 } catch {
-    Write-Host "❌ Deployment failed: $_" -ForegroundColor Red
+    Write-Host "ERR: Deployment failed: $_" -ForegroundColor Red
     exit 1
 }
 
 if ($ShowLogs) {
     Write-Host ""
-    Write-Host "📋 Container logs:" -ForegroundColor Yellow
+    Write-Host "Container logs:" -ForegroundColor Yellow
     $logCommand = @(
         "ssh", "-p", $PI_PORT, "${PI_USER}@${PI_HOST}",
         "docker logs $CONTAINER_NAME --tail 20"
@@ -165,8 +165,8 @@ if ($ShowLogs) {
 }
 
 Write-Host ""
-Write-Host "🎉 Deployment complete!" -ForegroundColor Green
-Write-Host "🌐 Access your diagnostic agent at: http://${PI_HOST}:5000" -ForegroundColor Cyan
+Write-Host "Deployment complete!" -ForegroundColor Green
+Write-Host "Access your diagnostic agent at: http://${PI_HOST}:5000" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Next commands:" -ForegroundColor Yellow
 Write-Host "  View logs: ssh -p $PI_PORT $PI_USER@$PI_HOST 'docker logs $CONTAINER_NAME'" -ForegroundColor White

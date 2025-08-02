@@ -17,14 +17,14 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "🔧 Setting up cross-compilation environment..." -ForegroundColor Cyan
+Write-Host "Setting up cross-compilation environment..." -ForegroundColor Cyan
 
 # Check if Docker is installed
 try {
     $dockerVersion = docker --version
-    Write-Host "✅ Docker found: $dockerVersion" -ForegroundColor Green
+    Write-Host "Docker found: $dockerVersion" -ForegroundColor Green
 } catch {
-    Write-Host "❌ Docker not found. Please install Docker Desktop first." -ForegroundColor Red
+    Write-Host "ERR: Docker not found. Please install Docker Desktop first." -ForegroundColor Red
     Write-Host "Download from: https://www.docker.com/products/docker-desktop" -ForegroundColor Yellow
     exit 1
 }
@@ -32,14 +32,14 @@ try {
 # Check if buildx is available
 try {
     docker buildx version | Out-Null
-    Write-Host "✅ Docker Buildx available" -ForegroundColor Green
+    Write-Host "Docker Buildx available" -ForegroundColor Green
 } catch {
-    Write-Host "❌ Docker Buildx not available. Please update Docker Desktop." -ForegroundColor Red
+    Write-Host "ERR: Docker Buildx not available. Please update Docker Desktop." -ForegroundColor Red
     exit 1
 }
 
 # Create and use a new builder that supports ARM64
-Write-Host "🏗️ Setting up multi-platform builder..." -ForegroundColor Yellow
+Write-Host "Setting up multi-platform builder..." -ForegroundColor Yellow
 
 try {
     # Remove existing builder if it exists
@@ -50,19 +50,19 @@ try {
     docker buildx use diagnostic-builder
     docker buildx inspect --bootstrap
     
-    Write-Host "✅ Multi-platform builder 'diagnostic-builder' created" -ForegroundColor Green
+    Write-Host "Multi-platform builder 'diagnostic-builder' created" -ForegroundColor Green
 } catch {
-    Write-Host "❌ Failed to create builder: $_" -ForegroundColor Red
+    Write-Host "ERR: Failed to create builder: $_" -ForegroundColor Red
     exit 1
 }
 
 # Verify platforms
-Write-Host "🔍 Checking available platforms..." -ForegroundColor Yellow
+Write-Host "Checking available platforms..." -ForegroundColor Yellow
 $platforms = docker buildx inspect | Select-String "Platforms:"
 Write-Host "Available platforms: $platforms" -ForegroundColor Cyan
 
 if ($SetupOnly) {
-    Write-Host "✅ Setup complete! You can now cross-compile ARM64 images." -ForegroundColor Green
+    Write-Host "Setup complete! You can now cross-compile ARM64 images." -ForegroundColor Green
     Write-Host ""
     Write-Host "Next steps:" -ForegroundColor Cyan
     Write-Host "  1. Run: .\cross_compile_and_deploy.ps1" -ForegroundColor White
@@ -70,4 +70,4 @@ if ($SetupOnly) {
     exit 0
 }
 
-Write-Host "✅ Cross-compilation environment ready!" -ForegroundColor Green
+Write-Host "Cross-compilation environment ready!" -ForegroundColor Green

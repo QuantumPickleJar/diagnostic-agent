@@ -17,7 +17,7 @@ $cliScript = Join-Path $scriptDir "cli_prompt.py"
 
 # Check if Python script exists
 if (!(Test-Path $cliScript)) {
-    Write-Host "Error: CLI script not found at $cliScript" -ForegroundColor Red
+    Write-Host "ERR: CLI script not found at $cliScript" -ForegroundColor Red
     exit 1
 }
 
@@ -86,6 +86,6 @@ if ($Question) {
 try {
     & python $pythonArgs
 } catch {
-    Write-Host "Error executing CLI script: $_" -ForegroundColor Red
+    Write-Host "ERR: Error executing CLI script: $_" -ForegroundColor Red
     exit 1
 }
