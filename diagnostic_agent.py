@@ -11,7 +11,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 class DiagnosticAgent:
-    """Diagnostic agent that performs actual system diagnostics"""
+    """Diagnostic agent that performs system diagnostics"""
     
     def __init__(self, memory_dir="/app/agent_memory"):
         self.memory_dir = memory_dir
@@ -80,7 +80,7 @@ Query: {query}
                                          capture_output=True, text=True, timeout=10)
                 
                 if ps_result.returncode == 0:
-                    result += "🐳 Docker Containers (Running):\n"
+                    result += "Docker Containers (Running):\n"
                     lines = ps_result.stdout.strip().split('\n')
                     if len(lines) > 1:
                         for line in lines:
@@ -92,7 +92,7 @@ Query: {query}
                 all_result = subprocess.run(['docker', 'ps', '-a'], 
                                           capture_output=True, text=True, timeout=10)
                 if all_result.returncode == 0:
-                    result += "\n🔍 All Containers (including stopped):\n"
+                    result += "\n All Containers (including stopped):\n"
                     lines = all_result.stdout.strip().split('\n')
                     for line in lines:
                         result += f"   {line}\n"
@@ -123,7 +123,7 @@ Query: {query}
             if os.path.exists(connectivity_file):
                 with open(connectivity_file, 'r') as f:
                     connectivity_data = json.load(f)
-                    result += f"Internet Connectivity: {'✅ UP' if connectivity_data.get('internet_reachable') else 'ERR: DOWN'}\n"
+                    result += f"Internet Connectivity: {'UP' if connectivity_data.get('internet_reachable') else 'ERR: DOWN'}\n"
                     result += f"SSH Tunnel: {'OPEN' if connectivity_data.get('ssh_tunnel_open') else 'ERR: CLOSED'}\n"
                     result += f"Last Check: {connectivity_data.get('timestamp', 'Unknown')}\n"
             
@@ -232,22 +232,22 @@ Query: {query}
                     processes = process_data.get('processes', [])
                     ports = process_data.get('ports', [])
                     
-                    result += f"🔄 Running Processes: {len(processes)} detected\n"
+                    result += f" Running Processes: {len(processes)} detected\n"
                     
                     # Show interesting processes (common services and containers)
                     interesting = ['nginx', 'apache', 'docker', 'mysql', 'postgres', 'redis', 'node', 'python']
                     found_interesting = [p for p in processes if any(i in p.lower() for i in interesting)]
                     
                     if found_interesting:
-                        result += "🎯 Key Processes Found:\n"
+                        result += "Key Processes Found:\n"
                         for proc in found_interesting[:10]:
                             result += f"   {proc}\n"
                     
-                    result += f"\n🔊 Open Ports: {len(ports)}\n"
+                    result += f"\nOpen Ports: {len(ports)}\n"
                     for port in ports[:10]:  # Show first 10
                         result += f"   {port.get('address', '?')}:{port.get('port', '?')}\n"
                     
-                    result += f"\n📅 Last Scan: {process_data.get('timestamp', 'Unknown')}\n"
+                    result += f"\nLast Scan: {process_data.get('timestamp', 'Unknown')}\n"
             
             # Get current high-CPU processes
             try:
@@ -262,7 +262,7 @@ Query: {query}
                 
                 if processes:
                     processes.sort(key=lambda x: x['cpu_percent'], reverse=True)
-                    result += "\n🔥 High CPU Processes:\n"
+                    result += "\nHigh CPU Processes:\n"
                     for proc in processes[:5]:
                         result += f"   PID {proc['pid']}: {proc['name']} ({proc['cpu_percent']:.1f}% CPU)\n"
                         
@@ -302,7 +302,7 @@ Query: {query}
                             logs_result = subprocess.run(['docker', 'logs', '--tail', '30', container_name], 
                                                        capture_output=True, text=True, timeout=15)
                             if logs_result.returncode == 0:
-                                result += f"📋 {container_name.title()} Container Logs (last 30 lines):\n"
+                                result += f"{container_name.title()} Container Logs (last 30 lines):\n"
                                 log_lines = logs_result.stdout.strip().split('\n')
                                 
                                 # Look for errors and warnings
@@ -317,7 +317,7 @@ Query: {query}
                                         warning_count += 1
                                 
                                 if error_count == 0 and warning_count == 0:
-                                    result += "✅ No obvious errors or warnings found in recent logs\n"
+                                    result += "No obvious errors or warnings found in recent logs\n"
                                     # Show last few normal lines
                                     result += "\nRecent log entries:\n"
                                     for line in log_lines[-5:]:
@@ -339,7 +339,7 @@ Query: {query}
                 # Look at our own logs
                 debug_log = '/app/logs/debug.log'
                 if os.path.exists(debug_log):
-                    result += "\n📋 Agent Debug Log (last 10 lines):\n"
+                    result += "\nAgent Debug Log (last 10 lines):\n"
                     with open(debug_log, 'r') as f:
                         lines = f.readlines()
                         for line in lines[-10:]:
@@ -369,7 +369,7 @@ Query: {query}
         
         try:
             # Quick system overview
-            result += "🔍 System Overview:\n"
+            result += "System Overview:\n"
             result += f"   Hostname: {self.hostname}\n"
             
             # CPU and Memory

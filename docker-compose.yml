@@ -1,7 +1,7 @@
 services:
   diagnostic-agent:
     build: .
-    container_name: diagnostic-journalist
+    container_name: enhanced-diagnostic-agent
     ports:
       - "5000:5000"
     volumes:
@@ -13,18 +13,32 @@ services:
       - ./models:/app/models
       # Cache for sentence transformer models to speed up restarts
       - model_cache:/home/agent/.cache
+      # Mount host network and system info for diagnostics
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /etc:/host/etc:ro
+      # Add Docker socket for container monitoring
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       - PYTHONUNBUFFERED=1
-      - FLASK_ENV=production
+      - HOST=0.0.0.0
+      - PORT=5000
+      - DEBUG=false
       - PYTHONDONTWRITEBYTECODE=1
-      # Enhanced logging for transformers/huggingface downloads
-      - TRANSFORMERS_VERBOSITY=info
-      - HF_HUB_VERBOSITY=info
+      - PYTHONPATH=/app
       # Optionally specify TinyLlama model path if available
       - TINYLLAMA_MODEL_PATH=/app/models/tinyllama.gguf
+    command: ["python3", "smart_agent_frontend.py"]
     restart: unless-stopped
+    # Network mode to access host network stack for diagnostics
+    network_mode: "host"
+    privileged: false
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_ADMIN
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
       timeout: 15s
       retries: 3
@@ -40,7 +54,7 @@ services:
         limits:
           memory: 1G
         reservations:
-          memory: 512M    # Security options
+          memory: 512M
     security_opt:
       - no-new-privileges:true
     # Read-only root filesystem for enhanced security (with tmpfs for temp files)
