@@ -8,8 +8,8 @@ flask>=3.0.0
 numpy>=2.0.0
 sentence-transformers>=3.0.0
 
-# Try specific llama-cpp-python version with fallback
-llama-cpp-python>=0.2.27
+# Use CPU-only build for llama-cpp-python to avoid compilation issues on ARM64
+llama-cpp-python==0.2.27 --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
 
 # Standard packages (usually have ARM wheels)
 requests>=2.31.0
