@@ -37,6 +37,12 @@
       padding: 0.5em 1em;
       cursor: pointer;
     }
+    .slider-container {
+      margin-top: 1em;
+    }
+    input[type="range"] {
+      width: 100%;
+    }
     .status {
       font-size: 0.9em;
       margin-bottom: 1em;
@@ -95,6 +101,11 @@
     <h2>>_ Diagnostic Journalist</h2>
     <div class="status" id="status">[Checking connection status...]</div>
 
+    <div class="slider-container">
+      <label for="threshold">Delegation Threshold: <span id="thresholdValue">0.65</span></label>
+      <input type="range" id="threshold" min="0" max="1" step="0.01">
+    </div>
+
     <div class="prompt">
       <input type="text" id="command" placeholder="Enter command here...">
       <button onclick="sendCommand()">Send</button>
@@ -123,7 +134,21 @@
       } catch {
         document.getElementById('status').textContent = '[Status: CONNECTION ERROR]';
       }
-    }async function sendCommand() {
+    }
+
+    async function loadThreshold() {
+      try {
+        const res = await fetch('/config?key=routing.delegation_threshold');
+        const json = await res.json();
+        const val = parseFloat(json.value ?? 0.65);
+        document.getElementById('threshold').value = val;
+        document.getElementById('thresholdValue').textContent = val.toFixed(2);
+      } catch {
+        // ignore errors
+      }
+    }
+
+    async function sendCommand() {
       const cmd = document.getElementById('command').value;
       if (!cmd.trim()) return;
       
@@ -188,7 +213,9 @@
     async function toggleSSH() {
       await fetch('/toggle-ssh', { method: 'POST' });
       updateStatus();
-    }    async function toggleLog() {
+    }
+
+    async function toggleLog() {
       const log = document.getElementById('logViewer');
       if (log.style.display === 'none') {
         try {
@@ -216,8 +243,23 @@
       }
     });
 
+    document.getElementById('threshold').addEventListener('input', async function(e) {
+      const val = parseFloat(e.target.value);
+      document.getElementById('thresholdValue').textContent = val.toFixed(2);
+      try {
+        await fetch('/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: 'routing.delegation_threshold', value: val })
+        });
+      } catch (err) {
+        console.error('Failed to update threshold', err);
+      }
+    });
+
     setInterval(updateStatus, 15000);
     updateStatus();
+    loadThreshold();
   </script>
 </body>
 </html>

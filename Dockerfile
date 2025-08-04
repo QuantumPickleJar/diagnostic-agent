@@ -71,7 +71,7 @@ COPY --chown=agent:agent . .
 
 # Create default config if it doesn't exist
 RUN if [ ! -f /app/agent_memory/static_config.json ]; then \
-    echo '{"mode":"local","local_model_path":"/app/models/tinyllama.gguf","system_prompt_file":"system_prompt.txt","remote_dev":{"user":"user","ip":"192.168.1.100","port":22},"logging":{"level":"INFO","max_log_size_mb":50,"max_log_days":30},"memory":{"faiss_index_path":"/app/agent_memory/embeddings.faiss","recall_log_path":"/app/agent_memory/recall_log.jsonl"},"system_info":{"hostname":"diagnostic-agent","platform":"raspberry-pi","last_updated":"2025-07-30T00:00:00Z"}}' > /app/agent_memory/static_config.json; \
+    echo '{"mode":"local","local_model_path":"/app/models/tinyllama.gguf","system_prompt_file":"system_prompt.txt","remote_dev":{"user":"user","ip":"192.168.1.100","port":22},"logging":{"level":"INFO","max_log_size_mb":50,"max_log_days":30},"memory":{"faiss_index_path":"/app/agent_memory/embeddings.faiss","recall_log_path":"/app/agent_memory/recall_log.jsonl"},"routing":{"delegation_threshold":0.65},"system_info":{"hostname":"diagnostic-agent","platform":"raspberry-pi","last_updated":"2025-07-30T00:00:00Z"}}' > /app/agent_memory/static_config.json; \
     fi
 
 # Environment variables
