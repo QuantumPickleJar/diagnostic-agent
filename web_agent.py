@@ -49,6 +49,30 @@ except ImportError as e:
     SMART_AGENT_AVAILABLE = False
     logger.warning(f"Smart diagnostic agent not available: {e}")
 
+# Import autonomic dispatcher
+try:
+    from autonomic_dispatcher import dispatch_task, test_connectivity, get_dispatch_stats
+    AUTONOMIC_DISPATCHER_AVAILABLE = True
+    logger.info("Autonomic dispatcher loaded successfully")
+    
+    # Test connectivity at startup
+    connectivity_ok, connectivity_msg = test_connectivity()
+    logger.info(f"Remote dev machine connectivity: {connectivity_msg}")
+except ImportError as e:
+    AUTONOMIC_DISPATCHER_AVAILABLE = False
+    logger.warning(f"Autonomic dispatcher not available: {e}")
+    
+    # Fallback functions
+    def dispatch_task(task_text):
+        from unified_smart_agent import smart_agent
+        return smart_agent.process_query(task_text)
+    
+    def test_connectivity():
+        return False, "Autonomic dispatcher not available"
+    
+    def get_dispatch_stats():
+        return {"error": "Autonomic dispatcher not available"}
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MEMORY_DIR = os.path.join(BASE_DIR, "agent_memory")
 CONFIG_FILE = os.path.join(MEMORY_DIR, "static_config.json")
@@ -220,11 +244,21 @@ def rotate_debug_logs():
         logger.error(f"Error during debug log rotation: {e}")
 
 def execute_diagnostic_query(question):
-    """Execute diagnostic query using smart agent or real diagnostics"""
+    """Execute diagnostic query using autonomic dispatcher for smart routing"""
     
-    # First try the smart agent for natural responses
+    # Use autonomic dispatcher for intelligent task routing
+    if AUTONOMIC_DISPATCHER_AVAILABLE:
+        try:
+            logger.info(f"Processing query via autonomic dispatcher: {question[:50]}...")
+            return dispatch_task(question)
+        except Exception as e:
+            logger.error(f"Autonomic dispatcher failed: {e}")
+            # Fall back to local smart agent
+    
+    # Fallback: Use smart agent directly for local processing
     if SMART_AGENT_AVAILABLE:
         try:
+            logger.info("Falling back to local smart agent")
             return process_smart_query(question)
         except Exception as e:
             logger.error(f"Smart diagnostic agent failed: {e}")
@@ -233,6 +267,7 @@ def execute_diagnostic_query(question):
     # Use diagnostic engine if available
     if REAL_DIAGNOSTICS:
         try:
+            logger.info("Falling back to traditional diagnostic engine")
             return execute_diagnostic(question)
         except Exception as e:
             logger.error(f"Diagnostic engine failed: {e}")
@@ -273,13 +308,35 @@ def status():
     except Exception as e:
         logger.warning(f"Could not get FAISS entry count: {e}")
     
+    # Get dispatch stats if available
+    dispatch_stats = get_dispatch_stats() if AUTONOMIC_DISPATCHER_AVAILABLE else None
+    
+    # Test remote connectivity
+    remote_connectivity = None
+    if AUTONOMIC_DISPATCHER_AVAILABLE:
+        try:
+            success, message = test_connectivity()
+            remote_connectivity = {'success': success, 'message': message}
+        except Exception as e:
+            remote_connectivity = {'success': False, 'message': f'Connectivity test failed: {e}'}
+    
     return jsonify({
         'status': 'OPERATIONAL',
         'ssh_bridge': ssh_bridge_enabled,
         'faiss_entries': faiss_entries,
         'timestamp': datetime.now().isoformat(),
         'memory_dir': MEMORY_DIR,
-        'uptime': time.time() - start_time if 'start_time' in globals() else 0
+        'uptime': time.time() - start_time if 'start_time' in globals() else 0,
+        'autonomic_dispatcher': {
+            'available': AUTONOMIC_DISPATCHER_AVAILABLE,
+            'stats': dispatch_stats,
+            'remote_connectivity': remote_connectivity
+        },
+        'agents': {
+            'smart_agent': SMART_AGENT_AVAILABLE,
+            'real_diagnostics': REAL_DIAGNOSTICS,
+            'autonomic_dispatcher': AUTONOMIC_DISPATCHER_AVAILABLE
+        }
     })
 
 @app.route('/ask', methods=['POST'])
@@ -443,6 +500,58 @@ def health():
         'endpoints_active': True
     }
     return jsonify(health_status)
+
+@app.route('/dispatch/stats', methods=['GET'])
+@error_handler
+def dispatch_stats():
+    """Get autonomic dispatcher statistics"""
+    stats = get_dispatch_stats()
+    return jsonify(stats)
+
+@app.route('/dispatch/connectivity', methods=['GET'])
+@error_handler
+def dispatch_connectivity():
+    """Test connectivity to the remote dev machine"""
+    success, message = test_connectivity()
+    return jsonify({
+        'success': success,
+        'message': message,
+        'timestamp': datetime.now().isoformat()
+    })
+
+@app.route('/dispatch/force', methods=['POST'])
+@error_handler
+def dispatch_force():
+    """Force a task to execute locally or remotely"""
+    data = request.get_json()
+    if not data or 'question' not in data:
+        return jsonify({'error': 'No question provided'}), 400
+    
+    question = data['question'].strip()
+    if not question:
+        return jsonify({'error': 'Empty question'}), 400
+    
+    force_local = data.get('force_local', False)
+    force_remote = data.get('force_remote', False)
+    
+    if force_local and force_remote:
+        return jsonify({'error': 'Cannot force both local and remote execution'}), 400
+    
+    try:
+        if AUTONOMIC_DISPATCHER_AVAILABLE:
+            response = dispatch_task(question, force_local=force_local, force_remote=force_remote)
+        else:
+            # Fallback to regular processing
+            response = execute_diagnostic_query(question)
+        
+        return jsonify({
+            'response': response,
+            'execution_type': 'local' if force_local else 'remote' if force_remote else 'auto'
+        })
+        
+    except Exception as e:
+        logger.error(f"Forced dispatch failed: {e}")
+        return jsonify({'error': f'Dispatch failed: {str(e)}'}), 500
 
 def load_config():
     """Load configuration from file"""

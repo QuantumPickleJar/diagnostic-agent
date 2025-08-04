@@ -53,9 +53,9 @@ class UnifiedSmartAgent:
     
     def __init__(self):
         """Initialize the unified smart diagnostic agent"""
-        # Model paths - corrected for your actual setup
-        self.model_path = "/home/diagnostic-agent/models/tinyllama.gguf"
-        self.embeddings_model_path = "/home/diagnostic-agent/models/all-MiniLM-L6-v2"
+        # Model paths - use container paths for Docker deployment
+        self.model_path = "/app/models/tinyllama.gguf"
+        self.embeddings_model_path = "/app/models/all-MiniLM-L6-v2"
         
         # Model instances
         self.llama_model = None
