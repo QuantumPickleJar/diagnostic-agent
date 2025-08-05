@@ -1,29 +1,21 @@
 #!/usr/bin/env powershell
 <#
 .SYNOPSIS
-Cross-compile ARM64 Docker image on dev machine and deploy to Raspberry Pi
+Cross-compile fast variant of diagnostic-agent for ARM64
 
 .DESCRIPTION
-This script builds the Docker image for ARM64 on your Windows dev machine (much faster than Pi),
-then transfers and deploys it to your Raspberry Pi via SSH.
-
-.PARAMETER UseProduction
-Use production Dockerfile instead of fast variant
+This script builds the fast variant Docker image for ARM64 using the cross-compilation
+Dockerfile, then transfers and deploys it to the Raspberry Pi via SSH.
 
 .PARAMETER SkipBuild
 Skip building, just deploy existing image
-
-.PARAMETER RestartService
-Restart the service after deployment
 
 .PARAMETER ShowLogs
 Show container logs after deployment
 #>
 
 param(
-    [switch]$UseProduction,
     [switch]$SkipBuild,
-    [switch]$RestartService,
     [switch]$ShowLogs
 )
 
@@ -31,28 +23,28 @@ $ErrorActionPreference = "Stop"
 
 # Configuration
 $PI_USER = "castlebravo"
-$PI_HOST = "picklegate.ddns.net"
+$PI_HOST = "picklegate.ddns.net" 
 $PI_PORT = "2222"
 $IMAGE_NAME = "diagnostic-agent"
 $CONTAINER_NAME = "diagnostic-journalist"
+$DOCKERFILE = "Dockerfile.fast.cross"
+$BUILD_TAG = "fast-cross"
+$FULL_IMAGE_NAME = "${IMAGE_NAME}:${BUILD_TAG}"
 
-# Determine which Dockerfile to use
-$DOCKERFILE = if ($UseProduction) { "Dockerfile.production" } else { "Dockerfile.fast" }
-$BUILD_TAG = if ($UseProduction) { "production" } else { "fast" }
-$FULL_IMAGE_NAME = "${IMAGE_NAME}:${BUILD_TAG}-arm64"
-
-Write-Host "Cross-Compilation Deployment Pipeline" -ForegroundColor Cyan
-Write-Host "=========================================" -ForegroundColor Cyan
+Write-Host "Fast Cross-Compilation Pipeline" -ForegroundColor Cyan
+Write-Host "===============================" -ForegroundColor Cyan
 Write-Host "${Target: $PI_USER@$PI_HOST:$PI_PORT}" -ForegroundColor Yellow
 Write-Host "Dockerfile: $DOCKERFILE" -ForegroundColor Yellow
 Write-Host "Image: $FULL_IMAGE_NAME" -ForegroundColor Yellow
 Write-Host ""
 
 if (-not $SkipBuild) {
-    Write-Host "Building ARM64 image on dev machine..." -ForegroundColor Yellow
-    Write-Host "This will be much faster than building on Pi!" -ForegroundColor Green
+    Write-Host "Building ARM64 fast image on dev machine..." -ForegroundColor Yellow
     
     try {
+        # Make sure we're using the diagnostic-builder
+        docker buildx use diagnostic-builder
+        
         # Use buildx to create ARM64 image
         $buildCommand = @(
             "docker", "buildx", "build",
@@ -70,7 +62,7 @@ if (-not $SkipBuild) {
             throw "Build failed with exit code $LASTEXITCODE"
         }
         
-        Write-Host "ARM64 image built successfully!" -ForegroundColor Green
+        Write-Host "ARM64 fast image built successfully!" -ForegroundColor Green
     } catch {
         Write-Host "ERR: Build failed: $_" -ForegroundColor Red
         exit 1
@@ -80,7 +72,7 @@ if (-not $SkipBuild) {
     Write-Host "Exporting image for transfer..." -ForegroundColor Yellow
     
     # Export image to tar file
-    $tarFile = "${IMAGE_NAME}_${BUILD_TAG}_arm64.tar"
+    $tarFile = "${IMAGE_NAME}_${BUILD_TAG}.tar"
     try {
         docker save $FULL_IMAGE_NAME -o $tarFile
         Write-Host "Image exported to $tarFile" -ForegroundColor Green
@@ -120,13 +112,11 @@ try {
     # Deploy on Pi
     Write-Host "Deploying container on Pi..." -ForegroundColor Cyan
     
-    $composeFile = if ($UseProduction) { "docker-compose.yml" } else { "docker-compose.fast.yml" }
-    
     $deployCommands = @(
         "cd /home/castlebravo/diagnostic-agent",
-        "docker-compose -f $composeFile down || true",
+        "docker-compose -f docker-compose.fast.yml down || true",
         "docker tag $FULL_IMAGE_NAME diagnostic-agent:latest",
-        "docker-compose -f $composeFile up -d"
+        "docker-compose -f docker-compose.fast.yml up -d"
     )
     
     $deployScript = $deployCommands -join " && "
@@ -165,10 +155,12 @@ if ($ShowLogs) {
 }
 
 Write-Host ""
-Write-Host "Deployment complete!" -ForegroundColor Green
+Write-Host "Fast deployment complete!" -ForegroundColor Green
 Write-Host "Access your diagnostic agent at: http://${PI_HOST}:5000" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Next commands:" -ForegroundColor Yellow
-Write-Host "  View logs: ssh -p $PI_PORT $PI_USER@$PI_HOST 'docker logs $CONTAINER_NAME'" -ForegroundColor White
-Write-Host "  Restart:   .\cross_compile_and_deploy.ps1 -SkipBuild -RestartService" -ForegroundColor White
-Write-Host "  Monitor:   ssh -p $PI_PORT $PI_USER@$PI_HOST 'docker stats'" -ForegroundColor White
+
+Write-Host "${  View logs: ssh -p $PI_PORT $PI_USER@$PI_HOST 'docker logs $CONTAINER_NAME'}" -ForegroundColor White
+Write-Host "  Deploy again: .\cross_compile_fast.ps1" -ForegroundColor White
+Write-Host "  Skip build: .\cross_compile_fast.ps1 -SkipBuild" -ForegroundColor White
+Write-Host "  View logs: .\cross_compile_fast.ps1 -ShowLogs" -ForegroundColor White

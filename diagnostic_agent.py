@@ -30,6 +30,11 @@ class DiagnosticAgent:
             if any(word in query_lower for word in ['container', 'docker', 'running']):
                 return self._diagnose_containers(query, timestamp)
             
+            # Container service management (auto-start, restart policies, etc.)
+            elif any(word in query_lower for word in ['start on boot', 'auto start', 'restart policy', 'service daemon']) or \
+                 ('container' in query_lower and any(word in query_lower for word in ['stopped', 'start', 'boot', 'daemon'])):
+                return self._diagnose_container_service_management(query, timestamp)
+            
             # Network diagnostics
             elif any(word in query_lower for word in ['network', 'connection', 'ping', 'dns', 'connectivity']):
                 return self._diagnose_network(query, timestamp)
@@ -80,9 +85,12 @@ Query: {query}
                                          capture_output=True, text=True, timeout=10)
                 
                 if ps_result.returncode == 0:
-                    result += "Docker Containers (Running):\n"
                     lines = ps_result.stdout.strip().split('\n')
-                    if len(lines) > 1:
+                    running_count = len([l for l in lines[1:] if l.strip()]) if len(lines) > 1 else 0
+                    result += f"Docker Containers Running: {running_count}\n"
+                    
+                    if running_count > 0:
+                        result += "Running Containers:\n"
                         for line in lines:
                             result += f"   {line}\n"
                     else:
@@ -92,10 +100,16 @@ Query: {query}
                 all_result = subprocess.run(['docker', 'ps', '-a'], 
                                           capture_output=True, text=True, timeout=10)
                 if all_result.returncode == 0:
-                    result += "\n All Containers (including stopped):\n"
-                    lines = all_result.stdout.strip().split('\n')
-                    for line in lines:
-                        result += f"   {line}\n"
+                    all_lines = all_result.stdout.strip().split('\n')
+                    total_count = len([l for l in all_lines[1:] if l.strip()]) if len(all_lines) > 1 else 0
+                    stopped_count = total_count - running_count
+                    
+                    result += f"\nTotal Containers: {total_count} ({running_count} running, {stopped_count} stopped)\n"
+                    
+                    if total_count > 0:
+                        result += "All Containers:\n"
+                        for line in all_lines:
+                            result += f"   {line}\n"
             else:
                 result += "ERR: Docker not available or not running\n"
                 
@@ -108,6 +122,143 @@ Query: {query}
         
         result += f"\nStatus: Container diagnostic complete."
         self._log_event("Container diagnostic", result)
+        return result
+    
+    def _diagnose_container_service_management(self, query, timestamp):
+        """Diagnose container service management and auto-start issues"""
+        result = f"""[{timestamp}] CONTAINER SERVICE MANAGEMENT MODE
+Query: {query}
+
+"""
+        
+        try:
+            # Extract container name from query if mentioned
+            container_name = None
+            query_words = query.lower().split()
+            
+            # Look for common container names in the query
+            for word in query_words:
+                if any(service in word for service in ['nextcloud', 'mysql', 'nginx', 'postgres', 'redis', 'grafana']):
+                    container_name = word
+                    break
+            
+            # Get all containers to find the mentioned one
+            all_result = subprocess.run(['docker', 'ps', '-a', '--format', 'table {{.Names}}\t{{.Status}}\t{{.Image}}'], 
+                                      capture_output=True, text=True, timeout=10)
+            
+            if all_result.returncode == 0:
+                lines = all_result.stdout.strip().split('\n')
+                found_container = None
+                
+                # Find the container mentioned in query
+                if container_name:
+                    for line in lines[1:]:  # Skip header
+                        if container_name in line.lower():
+                            parts = line.split()
+                            found_container = {
+                                'name': parts[0] if parts else 'unknown',
+                                'status': ' '.join(parts[1:-1]) if len(parts) > 2 else 'unknown',
+                                'image': parts[-1] if parts else 'unknown'
+                            }
+                            break
+                
+                if found_container:
+                    result += f"Found Container: {found_container['name']}\n"
+                    result += f"Current Status: {found_container['status']}\n"
+                    result += f"Image: {found_container['image']}\n\n"
+                    
+                    # Check current restart policy
+                    inspect_result = subprocess.run(['docker', 'inspect', found_container['name'], '--format', '{{.HostConfig.RestartPolicy.Name}}'], 
+                                                  capture_output=True, text=True, timeout=5)
+                    
+                    current_restart_policy = "unknown"
+                    if inspect_result.returncode == 0:
+                        current_restart_policy = inspect_result.stdout.strip()
+                    
+                    result += f"Current Restart Policy: {current_restart_policy}\n\n"
+                    
+                    # Provide solutions based on status
+                    if 'exited' in found_container['status'].lower() or 'stopped' in found_container['status'].lower():
+                        result += "🔧 CONTAINER AUTO-START SOLUTIONS:\n\n"
+                        
+                        result += "1. **Docker Restart Policy (Recommended)**\n"
+                        result += f"   docker update --restart unless-stopped {found_container['name']}\n"
+                        result += f"   docker start {found_container['name']}\n\n"
+                        
+                        result += "2. **Docker Compose Auto-Restart**\n"
+                        result += "   Add to your docker-compose.yml:\n"
+                        result += "   ```yaml\n"
+                        result += "   services:\n"
+                        result += f"     {container_name}:\n"
+                        result += "       restart: unless-stopped\n"
+                        result += "   ```\n\n"
+                        
+                        result += "3. **Systemd Service (System-level)**\n"
+                        result += "   Create /etc/systemd/system/container-autostart.service:\n"
+                        result += "   ```ini\n"
+                        result += "   [Unit]\n"
+                        result += "   Description=Auto-start containers\n"
+                        result += "   After=docker.service\n"
+                        result += "   Requires=docker.service\n\n"
+                        result += "   [Service]\n"
+                        result += "   Type=oneshot\n"
+                        result += f"   ExecStart=/usr/bin/docker start {found_container['name']}\n"
+                        result += "   RemainAfterExit=true\n\n"
+                        result += "   [Install]\n"
+                        result += "   WantedBy=multi-user.target\n"
+                        result += "   ```\n"
+                        result += "   Enable with: sudo systemctl enable container-autostart\n\n"
+                        
+                        result += "4. **Cron Job Fallback**\n"
+                        result += "   Add to crontab (crontab -e):\n"
+                        result += f"   @reboot sleep 30 && docker start {found_container['name']}\n\n"
+                        
+                        result += "💡 **RECOMMENDED ACTION:**\n"
+                        result += f"Run this command to fix it now:\n"
+                        result += f"docker update --restart unless-stopped {found_container['name']} && docker start {found_container['name']}\n\n"
+                        
+                    else:
+                        result += "Container appears to be running. If you want to ensure it auto-starts:\n"
+                        result += f"docker update --restart unless-stopped {found_container['name']}\n\n"
+                        
+                else:
+                    result += "🔍 Container Analysis:\n"
+                    result += "Could not find the specific container mentioned in your query.\n\n"
+                    
+                    # Show all stopped containers
+                    stopped_containers = []
+                    for line in lines[1:]:
+                        if 'exited' in line.lower():
+                            parts = line.split()
+                            if parts:
+                                stopped_containers.append(parts[0])
+                    
+                    if stopped_containers:
+                        result += f"Found {len(stopped_containers)} stopped containers:\n"
+                        for container in stopped_containers:
+                            result += f"   - {container}\n"
+                        result += "\n🔧 To auto-start any of these containers:\n"
+                        result += "docker update --restart unless-stopped CONTAINER_NAME\n"
+                        result += "docker start CONTAINER_NAME\n\n"
+                    
+                result += "📋 **RESTART POLICY OPTIONS:**\n"
+                result += "- `no`: Never restart (default)\n"
+                result += "- `always`: Always restart\n"
+                result += "- `unless-stopped`: Restart unless manually stopped\n"
+                result += "- `on-failure`: Restart only on failure\n"
+                
+            else:
+                result += "ERR: Could not access Docker containers\n"
+                
+        except subprocess.TimeoutExpired:
+            result += "WARN: Docker commands timed out\n"
+        except FileNotFoundError:
+            result += "ERR: Docker command not found\n"
+        except Exception as e:
+            result += f"ERR: Container service management error: {str(e)}\n"
+        
+        result += f"\nStatus: Container service management diagnostic complete."
+        self._log_event("Container service management", result)
         return result
     
     def _diagnose_network(self, query, timestamp):
