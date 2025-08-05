@@ -246,7 +246,29 @@ def rotate_debug_logs():
 def execute_diagnostic_query(question):
     """Execute diagnostic query using autonomic dispatcher for smart routing"""
     
-    # Use autonomic dispatcher for intelligent task routing
+    # Check if this is a system data query that should return raw data
+    system_data_keywords = ['how many containers', 'container count', 'list containers', 'docker ps']
+    question_lower = question.lower()
+    needs_raw_data = any(keyword in question_lower for keyword in system_data_keywords)
+    
+    # For system data queries, skip AI interpretation and go straight to raw diagnostics
+    if needs_raw_data and REAL_DIAGNOSTICS:
+        try:
+            logger.info(f"Processing system data query directly: {question[:50]}...")
+            raw_result = execute_diagnostic(question)
+            
+            # Add a note about raw data
+            timestamp = datetime.now().isoformat()
+            return f"""[{timestamp}] SYSTEM DATA QUERY (RAW OUTPUT)
+Query: {question}
+
+{raw_result}
+
+Note: This is raw system data without AI interpretation to ensure accuracy."""
+        except Exception as e:
+            logger.error(f"Raw diagnostic failed: {e}")
+    
+    # Use autonomic dispatcher for intelligent task routing (non-system data queries)
     if AUTONOMIC_DISPATCHER_AVAILABLE:
         try:
             logger.info(f"Processing query via autonomic dispatcher: {question[:50]}...")

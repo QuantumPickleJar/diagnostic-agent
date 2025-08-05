@@ -53,9 +53,38 @@ class UnifiedSmartAgent:
     
     def __init__(self):
         """Initialize the unified smart diagnostic agent"""
-        # Model paths - use container paths for Docker deployment
-        self.model_path = "/app/models/tinyllama.gguf"
-        self.embeddings_model_path = "/app/models/all-MiniLM-L6-v2"
+        # Model paths - check multiple locations for robustness
+        self.model_paths = [
+            "/app/models/tinyllama.gguf",  # Docker mount from docker-compose
+            "/home/diagnostic-agent/models/tinyllama.gguf",  # Pi host path
+            os.path.join(os.path.dirname(__file__), "models", "tinyllama.gguf"),  # Local relative path
+            os.getenv("TINYLLAMA_MODEL_PATH", "/app/models/tinyllama.gguf")  # Environment variable override
+        ]
+        
+        # Find the actual model path
+        self.model_path = None
+        for path in self.model_paths:
+            if os.path.exists(path):
+                self.model_path = path
+                logger.info(f"Found TinyLlama model at: {path}")
+                break
+        
+        if not self.model_path:
+            logger.warning(f"TinyLlama model not found in any of these locations: {self.model_paths}")
+        
+        # Embeddings model paths
+        self.embeddings_model_paths = [
+            "/app/models/all-MiniLM-L6-v2",
+            "/home/diagnostic-agent/models/all-MiniLM-L6-v2",
+            os.path.join(os.path.dirname(__file__), "models", "all-MiniLM-L6-v2")
+        ]
+        
+        # Find embeddings model path
+        self.embeddings_model_path = None
+        for path in self.embeddings_model_paths:
+            if os.path.exists(path) and os.path.isdir(path):
+                self.embeddings_model_path = path
+                break
         
         # Model instances
         self.llama_model = None
@@ -78,7 +107,7 @@ Be conversational, helpful, and concise. Give specific answers based on the diag
     def _initialize_models(self):
         """Initialize both language models"""
         # Initialize TinyLlama for natural language responses
-        if LLAMA_CPP_AVAILABLE and os.path.exists(self.model_path):
+        if LLAMA_CPP_AVAILABLE and self.model_path and os.path.exists(self.model_path):
             try:
                 logger.info(f"Loading TinyLlama model from {self.model_path}")
                 self.llama_model = Llama(
@@ -96,8 +125,10 @@ Be conversational, helpful, and concise. Give specific answers based on the diag
         else:
             if not LLAMA_CPP_AVAILABLE:
                 logger.warning("llama-cpp-python not available")
-            elif not os.path.exists(self.model_path):
-                logger.warning(f"TinyLlama model not found: {self.model_path}")
+            elif not self.model_path:
+                logger.warning("TinyLlama model not found in any expected location")
+            else:
+                logger.warning(f"TinyLlama model file does not exist: {self.model_path}")
             self.model_available = False
         
         # Initialize sentence transformer for embeddings  
