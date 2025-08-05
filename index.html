@@ -41,6 +41,25 @@
       font-size: 0.9em;
       margin-bottom: 1em;
     }
+    .bridge-indicator {
+      display: inline-block;
+      padding: 0.2em 0.5em;
+      border-radius: 3px;
+      font-size: 0.8em;
+      margin-left: 0.5em;
+    }
+    .bridge-connected {
+      background-color: #00ff88;
+      color: #121212;
+    }
+    .bridge-disconnected {
+      background-color: #ff4444;
+      color: #ffffff;
+    }
+    .bridge-monitoring {
+      background-color: #ffaa00;
+      color: #121212;
+    }
     .output {
       white-space: pre-wrap;
       background-color: #1e1e1e;
@@ -131,6 +150,14 @@
       <label>Delegate when score exceeds: <span id="thresholdValue">0.70</span></label>
       <input type="range" id="semanticThreshold" min="0" max="1" step="0.01" value="0.7">
       <label><input type="checkbox" id="wakeToggle"> Wake dev machine if sleeping</label>
+      
+      <hr style="border-color: #00ff88; margin: 1em 0;">
+      <h4>🔗 Bridge Monitoring</h4>
+      <button onclick="forceBridgeCheck()" style="margin-right: 0.5em;">Force Bridge Check</button>
+      <button onclick="viewBridgeDetails()">View Bridge Details</button>
+      <div id="bridgeDetails" style="margin-top: 0.5em; font-size: 0.9em;"></div>
+      
+      <hr style="border-color: #00ff88; margin: 1em 0;">
       <div id="recentTasks"></div>
     </div>
   </div>
@@ -138,14 +165,31 @@
   <script>
     async function updateStatus() {
       try {
-        const [res, bridgeRes] = await Promise.all([
+        const [res, bridgeRes, detailedBridgeRes] = await Promise.all([
           fetch('/status'),
-          fetch('/bridge_status')
+          fetch('/bridge_status'),
+          fetch('/bridge/detailed_status').catch(() => ({ json: () => ({error: 'Not available'}) }))
         ]);
         const json = await res.json();
         const bridge = await bridgeRes.json();
-        const statusText = `[Status: ${json.status}] SSH: ${json.ssh_bridge ? 'ON' : 'OFF'} | Bridge: ${bridge.status} | Entries: ${json.faiss_entries}`;
-        document.getElementById('status').textContent = statusText;
+        const detailedBridge = await detailedBridgeRes.json();
+        
+        // Create bridge status indicator
+        let bridgeIndicator = '';
+        if (detailedBridge.bridge_connected) {
+          bridgeIndicator = `<span class="bridge-indicator bridge-connected">🔗 CONNECTED</span>`;
+        } else if (detailedBridge.monitoring_active) {
+          bridgeIndicator = `<span class="bridge-indicator bridge-monitoring">⚡ MONITORING</span>`;
+        } else {
+          bridgeIndicator = `<span class="bridge-indicator bridge-disconnected">❌ OFFLINE</span>`;
+        }
+        
+        // Show uptime if available
+        const uptimeInfo = detailedBridge.uptime_percentage ? 
+          ` (${detailedBridge.uptime_percentage.toFixed(1)}% uptime)` : '';
+        
+        const statusText = `[Status: ${json.status}] SSH: ${json.ssh_bridge ? 'ON' : 'OFF'} | Bridge: ${bridge.status}${uptimeInfo} | Entries: ${json.faiss_entries}`;
+        document.getElementById('status').innerHTML = statusText + bridgeIndicator;
       } catch {
         document.getElementById('status').textContent = '[Status: CONNECTION ERROR]';
       }
@@ -305,6 +349,66 @@
         sendCommand();
       }
     });
+
+    // Bridge monitoring functions
+    async function forceBridgeCheck() {
+      try {
+        const output = document.getElementById('output');
+        const timestamp = new Date().toLocaleTimeString();
+        
+        output.innerHTML += `<div class="chat-message">
+          <span class="chat-user">>_ User:</span> <span class="chat-timestamp">[${timestamp}]</span><br>
+          Force bridge check
+        </div>`;
+        
+        const response = await fetch('/bridge/force_check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const result = await response.json();
+        const checkTimestamp = new Date().toLocaleTimeString();
+        
+        output.innerHTML += `<div class="chat-message">
+          <span class="chat-agent">>_ System:</span> <span class="chat-timestamp">[${checkTimestamp}]</span><br>
+          Bridge check ${result.success ? 'completed successfully' : 'failed'}: ${result.message}
+        </div>`;
+        
+        // Update status immediately
+        updateStatus();
+        
+        // Scroll to bottom
+        output.scrollTop = output.scrollHeight;
+      } catch (error) {
+        console.error('Bridge check failed:', error);
+      }
+    }
+
+    async function viewBridgeDetails() {
+      try {
+        const response = await fetch('/bridge/detailed_status');
+        const details = await response.json();
+        
+        let detailsHtml = '';
+        if (details.error) {
+          detailsHtml = `<span style="color: #ff4444;">Bridge monitor not available</span>`;
+        } else {
+          detailsHtml = `
+            <strong>Connection:</strong> ${details.bridge_connected ? '✅ Connected' : '❌ Disconnected'}<br>
+            <strong>Monitoring:</strong> ${details.monitoring_active ? '🔄 Active' : '⏸️ Inactive'}<br>
+            <strong>Uptime:</strong> ${details.uptime_percentage ? details.uptime_percentage.toFixed(1) + '%' : 'N/A'}<br>
+            <strong>Wake Attempts:</strong> ${details.wake_attempts || 0}<br>
+            <strong>Last Check:</strong> ${details.last_check ? new Date(details.last_check).toLocaleString() : 'Never'}<br>
+            <strong>Last Success:</strong> ${details.last_successful_connection ? new Date(details.last_successful_connection).toLocaleString() : 'Never'}<br>
+            <strong>Errors:</strong> ${details.error_count || 0}
+          `;
+        }
+        
+        document.getElementById('bridgeDetails').innerHTML = detailsHtml;
+      } catch (error) {
+        document.getElementById('bridgeDetails').innerHTML = `<span style="color: #ff4444;">Failed to load bridge details</span>`;
+      }
+    }
 
     setInterval(updateStatus, 15000);
     updateStatus();
