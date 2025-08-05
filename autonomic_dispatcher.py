@@ -6,6 +6,7 @@ import subprocess
 import time
 import os
 import logging
+import socket
 from pathlib import Path
 from semantic_task_scorer import semantic_scorer
 
@@ -16,19 +17,17 @@ logger = logging.getLogger(__name__)
 memory_dir = Path("agent_memory")
 memory_dir.mkdir(exist_ok=True)
 
-# Load static config
+# Load static config for SSH details
 config_path = memory_dir / "static_config.json"
 try:
     with open(config_path) as f:
         config = json.load(f)
 except FileNotFoundError:
-    # Create default config if it doesn't exist
     config = {
-        "delegation_threshold": 0.65,
         "dev_machine": {
-            "host": "picklegate.ddns.net",
-            "port": 2222,
-            "user": "castlebravo"
+            "host": "192.168.1.100",
+            "port": 22,
+            "user": "pi"
         },
         "local_agent_enabled": True,
         "remote_agent_enabled": True
@@ -37,11 +36,106 @@ except FileNotFoundError:
         json.dump(config, f, indent=2)
     logger.info(f"Created default config at {config_path}")
 
-DEV_HOST = config.get("dev_machine", {}).get("host", "picklegate.ddns.net")
-DEV_PORT = config.get("dev_machine", {}).get("port", 2222)
-DEV_USER = config.get("dev_machine", {}).get("user", "castlebravo")
+# Routing configuration (reachability/WOL)
+routing_config_path = memory_dir / "routing_config.json"
+default_routing = {
+    "routing": {
+        "delegation_threshold": 0.7,
+        "wake_on_lan_enabled": True,
+        "dev_machine_mac": "A1:B2:C3:D4:E5:F6",
+        "dev_machine_ip": "192.168.1.100",
+        "dev_machine_port": 22
+    }
+}
+try:
+    with open(routing_config_path) as f:
+        routing_config = json.load(f)
+except FileNotFoundError:
+    routing_config = default_routing
+    with open(routing_config_path, 'w') as f:
+        json.dump(routing_config, f, indent=2)
+
+routing = routing_config.get("routing", {})
+DEV_HOST = routing.get("dev_machine_ip", config.get("dev_machine", {}).get("host", "192.168.1.100"))
+DEV_PORT = routing.get("dev_machine_port", config.get("dev_machine", {}).get("port", 22))
+DEV_USER = config.get("dev_machine", {}).get("user", "pi")
 LOCAL_ENABLED = config.get("local_agent_enabled", True)
 REMOTE_ENABLED = config.get("remote_agent_enabled", True)
+WAKE_ON_LAN_ENABLED = routing.get("wake_on_lan_enabled", True)
+DEV_MAC = routing.get("dev_machine_mac", "")
+
+BRIDGE_STATUS = {
+    "connected": False,
+    "last_ping_time": None,
+    "fallback_used": False,
+    "failure_count": 0,
+    "disabled_until": 0
+}
+
+
+def save_routing_config():
+    """Persist routing configuration to disk."""
+    routing_config["routing"] = {
+        "delegation_threshold": routing.get("delegation_threshold", semantic_scorer.threshold),
+        "wake_on_lan_enabled": WAKE_ON_LAN_ENABLED,
+        "dev_machine_mac": DEV_MAC,
+        "dev_machine_ip": DEV_HOST,
+        "dev_machine_port": DEV_PORT
+    }
+    with open(routing_config_path, 'w') as f:
+        json.dump(routing_config, f, indent=2)
+
+
+def set_wake_on_lan(enabled: bool):
+    """Enable or disable Wake-on-LAN attempts."""
+    global WAKE_ON_LAN_ENABLED
+    WAKE_ON_LAN_ENABLED = bool(enabled)
+    save_routing_config()
+    return WAKE_ON_LAN_ENABLED
+
+
+def is_dev_machine_reachable(ip: str, port: int) -> bool:
+    """Check if the dev machine is reachable via TCP."""
+    try:
+        with socket.create_connection((ip, port), timeout=3):
+            return True
+    except Exception:
+        return False
+
+
+def send_magic_packet(mac_address: str):
+    """Send a Wake-on-LAN magic packet."""
+    try:
+        mac_bytes = bytes.fromhex(mac_address.replace(":", ""))
+        packet = b"\xff" * 6 + mac_bytes * 16
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            s.sendto(packet, ("<broadcast>", 9))
+    except Exception as e:
+        logger.error(f"Failed to send magic packet: {e}")
+
+
+def attempt_wake_and_retry() -> bool:
+    """Attempt to wake the dev machine then re-check reachability."""
+    if not DEV_MAC:
+        return False
+    send_magic_packet(DEV_MAC)
+    time.sleep(45)
+    return is_dev_machine_reachable(DEV_HOST, DEV_PORT)
+
+
+def get_bridge_status():
+    """Return current bridge status information."""
+    last_ping = None
+    if BRIDGE_STATUS["last_ping_time"]:
+        last_ping = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(BRIDGE_STATUS["last_ping_time"]))
+    return {
+        "status": "connected" if BRIDGE_STATUS["connected"] else "disconnected",
+        "last_ping_time": last_ping,
+        "fallback_used": BRIDGE_STATUS["fallback_used"],
+        "wake_on_lan_enabled": WAKE_ON_LAN_ENABLED,
+        "disabled_until": BRIDGE_STATUS["disabled_until"]
+    }
 
 
 def score_task(task_text):
@@ -77,6 +171,9 @@ def dispatch_task(task_text, force_local=False, force_remote=False):
         reason = "Forced remote execution"
     else:
         execute_remote = score >= threshold and REMOTE_ENABLED
+        if BRIDGE_STATUS["disabled_until"] > time.time():
+            execute_remote = False
+            reason = "Remote delegation temporarily disabled"
     
     # Log the decision
     log_event("dispatch_decision", {
@@ -94,7 +191,36 @@ def dispatch_task(task_text, force_local=False, force_remote=False):
     )
     
     if execute_remote:
-        return run_remote(task_text)
+        if is_dev_machine_reachable(DEV_HOST, DEV_PORT):
+            BRIDGE_STATUS.update({
+                "connected": True,
+                "last_ping_time": time.time(),
+                "fallback_used": False,
+                "failure_count": 0
+            })
+            return run_remote(task_text)
+
+        BRIDGE_STATUS.update({
+            "connected": False,
+            "last_ping_time": time.time(),
+            "fallback_used": True,
+            "failure_count": BRIDGE_STATUS["failure_count"] + 1
+        })
+        log_event("bridge_unreachable", {"ip": DEV_HOST, "port": DEV_PORT})
+
+        if WAKE_ON_LAN_ENABLED and attempt_wake_and_retry():
+            BRIDGE_STATUS.update({
+                "connected": True,
+                "fallback_used": False,
+                "failure_count": 0
+            })
+            return run_remote(task_text)
+
+        if BRIDGE_STATUS["failure_count"] >= 3:
+            BRIDGE_STATUS["disabled_until"] = time.time() + 600
+            log_event("bridge_auto_disabled", {"for_seconds": 600})
+        log_event("fallback", "Dev machine unreachable, executing locally")
+        return run_local(task_text)
     else:
         return run_local(task_text)
 
@@ -209,23 +335,14 @@ def test_connectivity():
     """Test connectivity to the remote dev machine"""
     if not REMOTE_ENABLED:
         return False, "Remote execution disabled in config"
-    
-    try:
-        result = subprocess.run([
-            "ssh", 
-            "-p", str(DEV_PORT),
-            "-o", "ConnectTimeout=5",
-            f"{DEV_USER}@{DEV_HOST}",
-            "echo 'connectivity_test'"
-        ], capture_output=True, text=True, timeout=10)
-        
-        if result.returncode == 0:
-            return True, "Remote connection successful"
-        else:
-            return False, f"SSH failed: {result.stderr}"
-            
-    except Exception as e:
-        return False, f"Connection test failed: {str(e)}"
+
+    reachable = is_dev_machine_reachable(DEV_HOST, DEV_PORT)
+    BRIDGE_STATUS.update({
+        "connected": reachable,
+        "last_ping_time": time.time(),
+        "fallback_used": False
+    })
+    return reachable, "Remote connection successful" if reachable else "Dev machine unreachable"
 
 
 def get_dispatch_stats():

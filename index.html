@@ -130,6 +130,7 @@
       <label><input type="checkbox" id="semanticToggle"> Enable semantic task scoring (experimental)</label>
       <label>Delegate when score exceeds: <span id="thresholdValue">0.70</span></label>
       <input type="range" id="semanticThreshold" min="0" max="1" step="0.01" value="0.7">
+      <label><input type="checkbox" id="wakeToggle"> Wake dev machine if sleeping</label>
       <div id="recentTasks"></div>
     </div>
   </div>
@@ -137,9 +138,13 @@
   <script>
     async function updateStatus() {
       try {
-        const res = await fetch('/status');
+        const [res, bridgeRes] = await Promise.all([
+          fetch('/status'),
+          fetch('/bridge_status')
+        ]);
         const json = await res.json();
-        const statusText = `[Status: ${json.status}] SSH: ${json.ssh_bridge ? 'ON' : 'OFF'} | Entries: ${json.faiss_entries}`;
+        const bridge = await bridgeRes.json();
+        const statusText = `[Status: ${json.status}] SSH: ${json.ssh_bridge ? 'ON' : 'OFF'} | Bridge: ${bridge.status} | Entries: ${json.faiss_entries}`;
         document.getElementById('status').textContent = statusText;
       } catch {
         document.getElementById('status').textContent = '[Status: CONNECTION ERROR]';
@@ -240,12 +245,17 @@
 
     async function loadSemanticSettings() {
       try {
-        const res = await fetch('/semantic/status');
-        const data = await res.json();
+        const [semRes, bridgeRes] = await Promise.all([
+          fetch('/semantic/status'),
+          fetch('/bridge_status')
+        ]);
+        const data = await semRes.json();
+        const bridge = await bridgeRes.json();
         document.getElementById('semanticToggle').checked = data.enabled;
         const slider = document.getElementById('semanticThreshold');
         slider.value = data.threshold;
         document.getElementById('thresholdValue').textContent = Number(data.threshold).toFixed(2);
+        document.getElementById('wakeToggle').checked = bridge.wake_on_lan_enabled;
         renderRecentTasks(data.recent_tasks, data.threshold);
       } catch (err) {}
     }
@@ -267,6 +277,14 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ threshold: parseFloat(e.target.value) })
+      });
+    });
+
+    document.getElementById('wakeToggle').addEventListener('change', async function(e) {
+      await fetch('/bridge/wake_on_lan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: e.target.checked })
       });
     });
 

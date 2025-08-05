@@ -1,0 +1,9 @@
+{
+  "routing": {
+    "delegation_threshold": 0.7,
+    "wake_on_lan_enabled": true,
+    "dev_machine_mac": "A1:B2:C3:D4:E5:F6",
+    "dev_machine_ip": "192.168.1.100",
+    "dev_machine_port": 22
+  }
+}

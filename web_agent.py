@@ -52,7 +52,13 @@ except ImportError as e:
 
 # Import autonomic dispatcher
 try:
-    from autonomic_dispatcher import dispatch_task, test_connectivity, get_dispatch_stats
+    from autonomic_dispatcher import (
+        dispatch_task,
+        test_connectivity,
+        get_dispatch_stats,
+        get_bridge_status,
+        set_wake_on_lan
+    )
     AUTONOMIC_DISPATCHER_AVAILABLE = True
     logger.info("Autonomic dispatcher loaded successfully")
     
@@ -73,6 +79,12 @@ except ImportError as e:
     
     def get_dispatch_stats():
         return {"error": "Autonomic dispatcher not available"}
+
+    def get_bridge_status():
+        return {"status": "unknown", "wake_on_lan_enabled": False, "fallback_used": False, "last_ping_time": None, "disabled_until": 0}
+
+    def set_wake_on_lan(enabled: bool):
+        return False
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MEMORY_DIR = os.path.join(BASE_DIR, "agent_memory")
@@ -581,6 +593,22 @@ def semantic_threshold():
     except (TypeError, ValueError):
         return jsonify({'error': 'Invalid threshold'}), 400
     return jsonify(semantic_scorer.status())
+
+
+@app.route('/bridge_status', methods=['GET'])
+@error_handler
+def bridge_status():
+    """Return current SSH bridge status"""
+    return jsonify(get_bridge_status())
+
+
+@app.route('/bridge/wake_on_lan', methods=['POST'])
+@error_handler
+def bridge_wake_on_lan():
+    """Enable or disable Wake-on-LAN attempts"""
+    data = request.get_json() or {}
+    state = set_wake_on_lan(bool(data.get('enabled')))
+    return jsonify({'wake_on_lan_enabled': state})
 
 def load_config():
     """Load configuration from file"""
