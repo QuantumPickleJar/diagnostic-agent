@@ -34,13 +34,14 @@ services:
       - HOST_ETC_PATH=/host/etc
     command: ["python3", "web_agent.py"]
     restart: unless-stopped
-    # Network mode to access host network stack for diagnostics
-    network_mode: "host"
+    # Use bridge network with port mapping for better isolation
     privileged: false
     cap_add:
       - NET_ADMIN
       - NET_RAW
       - SYS_ADMIN
+    networks:
+      - diagnostic-net
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s
@@ -58,3 +59,12 @@ volumes:
     driver: local
   model_cache:
     driver: local
+
+networks:
+  diagnostic-net:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: br-diagnostic
+      com.docker.network.bridge.enable_ip_masquerade: 'true'
+      com.docker.network.bridge.enable_icc: 'true'
+      com.docker.network.driver.mtu: 1500
