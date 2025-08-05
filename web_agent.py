@@ -20,6 +20,7 @@ import signal
 import sys
 from datetime import datetime, timedelta
 from functools import wraps
+from semantic_task_scorer import semantic_scorer
 
 # Configure logging with rotation
 logging.basicConfig(
@@ -552,6 +553,34 @@ def dispatch_force():
     except Exception as e:
         logger.error(f"Forced dispatch failed: {e}")
         return jsonify({'error': f'Dispatch failed: {str(e)}'}), 500
+
+
+@app.route('/semantic/status', methods=['GET'])
+@error_handler
+def semantic_status():
+    """Get semantic scoring status and recent tasks"""
+    return jsonify(semantic_scorer.status())
+
+
+@app.route('/semantic/enable', methods=['POST'])
+@error_handler
+def semantic_enable():
+    """Enable or disable semantic task scoring"""
+    data = request.get_json() or {}
+    semantic_scorer.set_enabled(bool(data.get('enabled')))
+    return jsonify(semantic_scorer.status())
+
+
+@app.route('/semantic/threshold', methods=['POST'])
+@error_handler
+def semantic_threshold():
+    """Update semantic scoring delegation threshold"""
+    data = request.get_json() or {}
+    try:
+        semantic_scorer.set_threshold(float(data.get('threshold')))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Invalid threshold'}), 400
+    return jsonify(semantic_scorer.status())
 
 def load_config():
     """Load configuration from file"""

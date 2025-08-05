@@ -88,6 +88,19 @@
       max-height: 300px;
       overflow-y: auto;
     }
+    .settings-viewer {
+      display: none;
+      margin-top: 1em;
+      background: #1e1e1e;
+      border: 1px solid #00ff88;
+      padding: 1em;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .task-bar {
+      padding: 0.25em;
+      margin-bottom: 0.25em;
+    }
   </style>
 </head>
 <body>
@@ -110,11 +123,19 @@
 
     <div class="tabs">
       <button class="tab-button" onclick="toggleLog()">📜 View Recall Log</button>
+      <button class="tab-button" onclick="toggleSettings()">⚙️ Settings</button>
     </div>
     <div class="log-viewer" id="logViewer">[Recall log will be loaded here]</div>
+    <div class="settings-viewer" id="settingsViewer">
+      <label><input type="checkbox" id="semanticToggle"> Enable semantic task scoring (experimental)</label>
+      <label>Delegate when score exceeds: <span id="thresholdValue">0.70</span></label>
+      <input type="range" id="semanticThreshold" min="0" max="1" step="0.01" value="0.7">
+      <div id="recentTasks"></div>
+    </div>
   </div>
 
-  <script>    async function updateStatus() {
+  <script>
+    async function updateStatus() {
       try {
         const res = await fetch('/status');
         const json = await res.json();
@@ -123,28 +144,27 @@
       } catch {
         document.getElementById('status').textContent = '[Status: CONNECTION ERROR]';
       }
-    }async function sendCommand() {
+    }
+
+    async function sendCommand() {
       const cmd = document.getElementById('command').value;
       if (!cmd.trim()) return;
-      
+
       const output = document.getElementById('output');
       const timestamp = new Date().toLocaleTimeString();
-      
-      // Add user message
+
       const userMsg = document.createElement('div');
       userMsg.className = 'chat-message';
       userMsg.innerHTML = `<span class="chat-user">>_ You:</span> <span class="chat-timestamp">[${timestamp}]</span><br>${cmd}`;
       output.appendChild(userMsg);
-      
-      // Add processing message
+
       const processingMsg = document.createElement('div');
       processingMsg.className = 'chat-message';
       processingMsg.innerHTML = `<span class="chat-agent">>_ Agent:</span> <span class="chat-timestamp">[Processing...]</span><br>Analyzing request...`;
       output.appendChild(processingMsg);
-      
-      // Scroll to bottom
+
       output.scrollTop = output.scrollHeight;
-      
+
       try {
         const res = await fetch('/ask', {
           method: 'POST',
@@ -152,43 +172,42 @@
           body: JSON.stringify({ question: cmd })
         });
         const data = await res.json();
-        
-        // Remove processing message
+
         output.removeChild(processingMsg);
-        
-        // Add agent response
+
         const responseMsg = document.createElement('div');
         responseMsg.className = 'chat-message';
         const responseTimestamp = new Date().toLocaleTimeString();
-        
+
         if (data.error) {
           responseMsg.innerHTML = `<span class="chat-agent">>_ Agent:</span> <span class="chat-timestamp">[${responseTimestamp}] ERROR</span><br>Error: ${data.error}`;
         } else {
           responseMsg.innerHTML = `<span class="chat-agent">>_ Agent:</span> <span class="chat-timestamp">[${responseTimestamp}]</span><br>${data.response}`;
         }
         output.appendChild(responseMsg);
-        
       } catch (error) {
-        // Remove processing message
         output.removeChild(processingMsg);
-        
-        // Add error message
         const errorMsg = document.createElement('div');
         errorMsg.className = 'chat-message';
         const errorTimestamp = new Date().toLocaleTimeString();
         errorMsg.innerHTML = `<span class="chat-agent">>_ Agent:</span> <span class="chat-timestamp">[${errorTimestamp}] CONNECTION ERROR</span><br>Connection error: ${error.message}`;
         output.appendChild(errorMsg);
       }
-      
-      // Scroll to bottom and clear input
+
       output.scrollTop = output.scrollHeight;
       document.getElementById('command').value = '';
+
+      if (document.getElementById('settingsViewer').style.display === 'block') {
+        loadSemanticSettings();
+      }
     }
 
     async function toggleSSH() {
       await fetch('/toggle-ssh', { method: 'POST' });
       updateStatus();
-    }    async function toggleLog() {
+    }
+
+    async function toggleLog() {
       const log = document.getElementById('logViewer');
       if (log.style.display === 'none') {
         try {
@@ -209,7 +228,60 @@
       }
     }
 
-    // Allow Enter key to send commands
+    async function toggleSettings() {
+      const settings = document.getElementById('settingsViewer');
+      if (settings.style.display === 'none') {
+        settings.style.display = 'block';
+        await loadSemanticSettings();
+      } else {
+        settings.style.display = 'none';
+      }
+    }
+
+    async function loadSemanticSettings() {
+      try {
+        const res = await fetch('/semantic/status');
+        const data = await res.json();
+        document.getElementById('semanticToggle').checked = data.enabled;
+        const slider = document.getElementById('semanticThreshold');
+        slider.value = data.threshold;
+        document.getElementById('thresholdValue').textContent = Number(data.threshold).toFixed(2);
+        renderRecentTasks(data.recent_tasks, data.threshold);
+      } catch (err) {}
+    }
+
+    document.getElementById('semanticToggle').addEventListener('change', async function(e) {
+      await fetch('/semantic/enable', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: e.target.checked })
+      });
+    });
+
+    const thresholdSlider = document.getElementById('semanticThreshold');
+    thresholdSlider.addEventListener('input', function(e) {
+      document.getElementById('thresholdValue').textContent = Number(e.target.value).toFixed(2);
+    });
+    thresholdSlider.addEventListener('change', async function(e) {
+      await fetch('/semantic/threshold', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ threshold: parseFloat(e.target.value) })
+      });
+    });
+
+    function renderRecentTasks(tasks, threshold) {
+      const container = document.getElementById('recentTasks');
+      container.innerHTML = '';
+      tasks.forEach(t => {
+        const div = document.createElement('div');
+        div.className = 'task-bar';
+        div.textContent = `${t.task} — ${t.score.toFixed(2)}`;
+        div.style.background = t.score >= threshold ? '#ff5555' : '#44aa44';
+        container.appendChild(div);
+      });
+    }
+
     document.getElementById('command').addEventListener('keypress', function(e) {
       if (e.key === 'Enter') {
         sendCommand();

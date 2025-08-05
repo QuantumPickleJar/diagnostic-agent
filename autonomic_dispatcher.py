@@ -7,6 +7,7 @@ import time
 import os
 import logging
 from pathlib import Path
+from semantic_task_scorer import semantic_scorer
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -36,7 +37,6 @@ except FileNotFoundError:
         json.dump(config, f, indent=2)
     logger.info(f"Created default config at {config_path}")
 
-THRESHOLD = config.get("delegation_threshold", 0.65)
 DEV_HOST = config.get("dev_machine", {}).get("host", "picklegate.ddns.net")
 DEV_PORT = config.get("dev_machine", {}).get("port", 2222)
 DEV_USER = config.get("dev_machine", {}).get("user", "castlebravo")
@@ -45,55 +45,8 @@ REMOTE_ENABLED = config.get("remote_agent_enabled", True)
 
 
 def score_task(task_text):
-    """
-    Score a task to determine if it should be executed locally or remotely.
-    Returns a score between 0.0 and 1.0, where higher scores indicate 
-    tasks better suited for the dev machine.
-    """
-    score = 0.0
-    task_lower = task_text.lower()
-    
-    # Length-based scoring (longer tasks may benefit from more resources)
-    if len(task_text) > 200:
-        score += 0.3
-    elif len(task_text) > 100:
-        score += 0.1
-    
-    # Complexity indicators
-    complexity_keywords = [
-        "optimize", "analyze", "summarize", "plan", "generate", "create",
-        "compile", "build", "complex", "detailed", "comprehensive"
-    ]
-    if any(kw in task_lower for kw in complexity_keywords):
-        score += 0.4
-    
-    # Code-related tasks (may need dev environment)
-    code_indicators = ["{", "}", ";", "def ", "class ", "import ", "function"]
-    if any(indicator in task_text for indicator in code_indicators):
-        score += 0.3
-    
-    # Development-specific tasks
-    dev_keywords = [
-        "debug", "refactor", "implement", "code review", "architecture",
-        "design pattern", "algorithm", "performance", "benchmark"
-    ]
-    if any(kw in task_lower for kw in dev_keywords):
-        score += 0.4
-    
-    # System-specific tasks (better suited for local execution)
-    local_keywords = [
-        "system status", "container", "docker", "network", "disk usage",
-        "memory", "cpu", "temperature", "process", "service", "logs"
-    ]
-    if any(kw in task_lower for kw in local_keywords):
-        score -= 0.3
-    
-    # Real-time monitoring tasks (should stay local)
-    realtime_keywords = ["monitor", "watch", "real-time", "live", "current"]
-    if any(kw in task_lower for kw in realtime_keywords):
-        score -= 0.2
-    
-    return max(0.0, min(score, 1.0))
+    """Proxy to the semantic task scorer"""
+    return semantic_scorer.score(task_text)
 
 
 def dispatch_task(task_text, force_local=False, force_remote=False):
@@ -110,9 +63,10 @@ def dispatch_task(task_text, force_local=False, force_remote=False):
     """
     if force_local and force_remote:
         raise ValueError("Cannot force both local and remote execution")
-    
+
+    threshold = semantic_scorer.threshold
     score = score_task(task_text)
-    reason = f"Task score: {score:.2f} vs threshold: {THRESHOLD:.2f}"
+    reason = f"Task score: {score:.2f} vs threshold: {threshold:.2f}"
     
     # Determine execution location
     if force_local:
@@ -122,16 +76,22 @@ def dispatch_task(task_text, force_local=False, force_remote=False):
         execute_remote = True
         reason = "Forced remote execution"
     else:
-        execute_remote = score >= THRESHOLD and REMOTE_ENABLED
+        execute_remote = score >= threshold and REMOTE_ENABLED
     
     # Log the decision
     log_event("dispatch_decision", {
-        "score": score, 
-        "threshold": THRESHOLD, 
+        "score": score,
+        "threshold": threshold,
         "reason": reason,
         "execute_remote": execute_remote,
         "task_preview": task_text[:100] + "..." if len(task_text) > 100 else task_text
     })
+
+    semantic_scorer.log_result(
+        task_text,
+        score,
+        "dev" if execute_remote else "local"
+    )
     
     if execute_remote:
         return run_remote(task_text)
