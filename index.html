@@ -30,6 +30,13 @@
       padding: 0.5em;
       font-family: monospace;
     }
+    input[type="number"] {
+      background: #1e1e1e;
+      color: #00ff88;
+      border: 1px solid #00ff88;
+      padding: 0.3em;
+      font-family: monospace;
+    }
     button {
       background-color: #00ff88;
       color: #121212;
@@ -146,10 +153,18 @@
     </div>
     <div class="log-viewer" id="logViewer">[Recall log will be loaded here]</div>
     <div class="settings-viewer" id="settingsViewer">
+      <h4>🤖 Autonomous Routing</h4>
       <label><input type="checkbox" id="semanticToggle"> Enable semantic task scoring (experimental)</label>
       <label>Delegate when score exceeds: <span id="thresholdValue">0.70</span></label>
       <input type="range" id="semanticThreshold" min="0" max="1" step="0.01" value="0.7">
       <label><input type="checkbox" id="wakeToggle"> Wake dev machine if sleeping</label>
+      
+      <hr style="border-color: #00ff88; margin: 1em 0;">
+      <h4>🌐 Network Routing</h4>
+      <label>Dev Machine IP: <input type="text" id="devMachineIP" placeholder="192.168.1.213" style="width: 120px; margin-left: 0.5em;"></label>
+      <label>Dev Machine MAC: <input type="text" id="devMachineMAC" placeholder="AA:BB:CC:DD:EE:FF" style="width: 140px; margin-left: 0.5em;"></label>
+      <label>SSH Port: <input type="number" id="devMachinePort" placeholder="22" style="width: 60px; margin-left: 0.5em;"></label>
+      <button onclick="saveRoutingConfig()" style="margin-top: 0.5em;">💾 Save Network Config</button>
       
       <hr style="border-color: #00ff88; margin: 1em 0;">
       <h4>🔗 Bridge Monitoring</h4>
@@ -289,17 +304,28 @@
 
     async function loadSemanticSettings() {
       try {
-        const [semRes, bridgeRes] = await Promise.all([
+        const [semRes, bridgeRes, routingRes] = await Promise.all([
           fetch('/semantic/status'),
-          fetch('/bridge_status')
+          fetch('/bridge_status'),
+          fetch('/routing_config').catch(() => ({ json: () => ({}) }))
         ]);
         const data = await semRes.json();
         const bridge = await bridgeRes.json();
+        const routing = await routingRes.json();
+        
         document.getElementById('semanticToggle').checked = data.enabled;
         const slider = document.getElementById('semanticThreshold');
         slider.value = data.threshold;
         document.getElementById('thresholdValue').textContent = Number(data.threshold).toFixed(2);
         document.getElementById('wakeToggle').checked = bridge.wake_on_lan_enabled;
+        
+        // Load routing configuration
+        if (routing.routing) {
+          document.getElementById('devMachineIP').value = routing.routing.dev_machine_ip || '';
+          document.getElementById('devMachineMAC').value = routing.routing.dev_machine_mac || '';
+          document.getElementById('devMachinePort').value = routing.routing.dev_machine_port || '22';
+        }
+        
         renderRecentTasks(data.recent_tasks, data.threshold);
       } catch (err) {}
     }
@@ -407,6 +433,37 @@
         document.getElementById('bridgeDetails').innerHTML = detailsHtml;
       } catch (error) {
         document.getElementById('bridgeDetails').innerHTML = `<span style="color: #ff4444;">Failed to load bridge details</span>`;
+      }
+    }
+
+    // Routing configuration functions
+    async function saveRoutingConfig() {
+      try {
+        const config = {
+          dev_machine_ip: document.getElementById('devMachineIP').value,
+          dev_machine_mac: document.getElementById('devMachineMAC').value,
+          dev_machine_port: parseInt(document.getElementById('devMachinePort').value) || 22
+        };
+        
+        const response = await fetch('/routing_config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(config)
+        });
+        
+        if (response.ok) {
+          const timestamp = new Date().toLocaleTimeString();
+          const output = document.getElementById('output');
+          output.innerHTML += `<div class="chat-message">
+            <span class="chat-agent">>_ System:</span> <span class="chat-timestamp">[${timestamp}]</span><br>
+            Network routing configuration saved successfully.
+          </div>`;
+          output.scrollTop = output.scrollHeight;
+        } else {
+          console.error('Failed to save routing config');
+        }
+      } catch (err) {
+        console.error('Error saving routing config:', err);
       }
     }
 

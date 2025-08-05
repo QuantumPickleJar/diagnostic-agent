@@ -696,6 +696,76 @@ def bridge_wake_on_lan():
     state = set_wake_on_lan(bool(data.get('enabled')))
     return jsonify({'wake_on_lan_enabled': state})
 
+@app.route('/routing_config', methods=['GET', 'POST'])
+@error_handler  
+def routing_config():
+    """Get or update routing configuration"""
+    routing_config_file = os.path.join(MEMORY_DIR, "routing_config.json")
+    
+    if request.method == 'GET':
+        # Return current routing configuration
+        try:
+            if os.path.exists(routing_config_file):
+                with open(routing_config_file, 'r') as f:
+                    return jsonify(json.load(f))
+            else:
+                # Return default configuration
+                return jsonify({
+                    "routing": {
+                        "delegation_threshold": 0.7,
+                        "wake_on_lan_enabled": True,
+                        "dev_machine_mac": "",
+                        "dev_machine_ip": "",
+                        "dev_machine_port": 22
+                    }
+                })
+        except Exception as e:
+            logger.error(f"Error reading routing config: {e}")
+            return jsonify({"error": "Failed to read routing config"}), 500
+    
+    else:  # POST - update configuration
+        try:
+            data = request.get_json() or {}
+            
+            # Load existing configuration
+            current_config = {}
+            if os.path.exists(routing_config_file):
+                with open(routing_config_file, 'r') as f:
+                    current_config = json.load(f)
+            
+            # Update routing section
+            if "routing" not in current_config:
+                current_config["routing"] = {
+                    "delegation_threshold": 0.7,
+                    "wake_on_lan_enabled": True
+                }
+            
+            # Update provided fields
+            if "dev_machine_ip" in data:
+                current_config["routing"]["dev_machine_ip"] = data["dev_machine_ip"]
+            if "dev_machine_mac" in data:
+                current_config["routing"]["dev_machine_mac"] = data["dev_machine_mac"]
+            if "dev_machine_port" in data:
+                current_config["routing"]["dev_machine_port"] = int(data["dev_machine_port"])
+            
+            # Save updated configuration
+            with open(routing_config_file, 'w') as f:
+                json.dump(current_config, f, indent=2)
+            
+            # Also update autonomic dispatcher if available
+            if AUTONOMIC_DISPATCHER_AVAILABLE:
+                try:
+                    import autonomic_dispatcher
+                    autonomic_dispatcher.save_routing_config()
+                except Exception as e:
+                    logger.warning(f"Could not update autonomic dispatcher config: {e}")
+            
+            return jsonify({"success": True, "message": "Routing configuration updated"})
+            
+        except Exception as e:
+            logger.error(f"Error updating routing config: {e}")
+            return jsonify({"error": "Failed to update routing config"}), 500
+
 def load_config():
     """Load configuration from file"""
     if not os.path.exists(CONFIG_FILE):
