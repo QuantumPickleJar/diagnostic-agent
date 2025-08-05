@@ -23,7 +23,9 @@ try:
 except FileNotFoundError:
     # Create default config if it doesn't exist
     config = {
-        "delegation_threshold": 0.65,
+        "routing": {
+            "delegation_threshold": 0.65
+        },
         "dev_machine": {
             "host": "picklegate.ddns.net",
             "port": 2222,
@@ -36,7 +38,7 @@ except FileNotFoundError:
         json.dump(config, f, indent=2)
     logger.info(f"Created default config at {config_path}")
 
-THRESHOLD = config.get("delegation_threshold", 0.65)
+THRESHOLD = config.get("routing", {}).get("delegation_threshold", 0.65)
 DEV_HOST = config.get("dev_machine", {}).get("host", "picklegate.ddns.net")
 DEV_PORT = config.get("dev_machine", {}).get("port", 2222)
 DEV_USER = config.get("dev_machine", {}).get("user", "castlebravo")

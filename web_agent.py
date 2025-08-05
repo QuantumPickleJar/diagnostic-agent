@@ -447,21 +447,35 @@ def config():
     
     key = data.get('key')
     new_value = data.get('value')
-    
+
     if not key or not valid_key(key):
         return jsonify({'error': 'Invalid key'}), 400
-    
+
+    if key == 'routing.delegation_threshold':
+        try:
+            new_value = float(new_value)
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Invalid value'}), 400
+        if not 0 <= new_value <= 1:
+            return jsonify({'error': 'Invalid value'}), 400
+
     cfg = load_config()
     parts = key.split('.')
     current = cfg
-    
+
     for p in parts[:-1]:
         if p not in current or not isinstance(current[p], dict):
             current[p] = {}
         current = current[p]
-    
+
     current[parts[-1]] = new_value
     save_config(cfg)
+
+    if key == 'routing.delegation_threshold':
+        try:
+            memory.log_event('threshold_update', f'New threshold set to {new_value}')
+        except Exception:
+            logger.error('Failed to log threshold update')
 
     return jsonify({'value': new_value})
 
