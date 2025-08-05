@@ -25,6 +25,8 @@ RUN apt-get update && apt-get install -y \
     gfortran \
     ca-certificates \
     lsb-release \
+    wakeonlan \
+    cron \
     && curl -fsSL https://get.docker.com -o get-docker.sh \
     && sh get-docker.sh \
     && rm get-docker.sh \

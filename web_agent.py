@@ -86,6 +86,33 @@ except ImportError as e:
     def set_wake_on_lan(enabled: bool):
         return False
 
+# Import bridge status monitor
+try:
+    from bridge_status_monitor import (
+        start_bridge_monitoring,
+        stop_bridge_monitoring,
+        get_bridge_status as get_detailed_bridge_status,
+        force_bridge_check
+    )
+    BRIDGE_MONITOR_AVAILABLE = True
+    logger.info("Bridge status monitor loaded successfully")
+except ImportError as e:
+    BRIDGE_MONITOR_AVAILABLE = False
+    logger.warning(f"Bridge status monitor not available: {e}")
+    
+    # Fallback functions
+    def start_bridge_monitoring():
+        return False
+    
+    def stop_bridge_monitoring():
+        pass
+    
+    def get_detailed_bridge_status():
+        return {"error": "Bridge monitor not available"}
+    
+    def force_bridge_check():
+        return False
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MEMORY_DIR = os.path.join(BASE_DIR, "agent_memory")
 CONFIG_FILE = os.path.join(MEMORY_DIR, "static_config.json")
@@ -167,6 +194,18 @@ def init_system():
         logger.info(f"FAISS index initialized with {count} entries")
     except Exception as e:
         logger.error(f"Failed to initialize FAISS index: {e}")
+    
+    # Start bridge monitoring
+    if BRIDGE_MONITOR_AVAILABLE:
+        try:
+            logger.info("Starting bridge status monitoring...")
+            success = start_bridge_monitoring()
+            if success:
+                logger.info("Bridge status monitoring started successfully")
+            else:
+                logger.warning("Bridge status monitoring failed to start")
+        except Exception as e:
+            logger.error(f"Failed to start bridge monitoring: {e}")
     
     logger.info("System initialization complete")
 
@@ -624,6 +663,31 @@ def bridge_status():
     return jsonify(get_bridge_status())
 
 
+@app.route('/bridge/detailed_status', methods=['GET'])
+@error_handler
+def bridge_detailed_status():
+    """Return detailed bridge status from monitor"""
+    if BRIDGE_MONITOR_AVAILABLE:
+        return jsonify(get_detailed_bridge_status())
+    else:
+        return jsonify({'error': 'Bridge monitor not available'}), 503
+
+
+@app.route('/bridge/force_check', methods=['POST'])
+@error_handler
+def bridge_force_check():
+    """Force immediate bridge status check"""
+    if BRIDGE_MONITOR_AVAILABLE:
+        success = force_bridge_check()
+        return jsonify({
+            'success': success,
+            'message': 'Bridge check completed' if success else 'Bridge check failed',
+            'timestamp': datetime.now().isoformat()
+        })
+    else:
+        return jsonify({'error': 'Bridge monitor not available'}), 503
+
+
 @app.route('/bridge/wake_on_lan', methods=['POST'])
 @error_handler
 def bridge_wake_on_lan():
@@ -714,6 +778,14 @@ def signal_handler(signum, frame):
     global shutdown_flag
     logger.info(f"Received signal {signum}, initiating graceful shutdown...")
     shutdown_flag = True
+    
+    # Stop bridge monitoring
+    if BRIDGE_MONITOR_AVAILABLE:
+        try:
+            logger.info("Stopping bridge status monitoring...")
+            stop_bridge_monitoring()
+        except Exception as e:
+            logger.error(f"Error stopping bridge monitoring: {e}")
     
     # Wait for background threads to finish
     for thread in background_threads:
