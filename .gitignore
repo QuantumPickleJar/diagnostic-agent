@@ -204,3 +204,4 @@ __marimo__/
 .github/instructions/castlebravo.instructions.md
 README.md
 deploy_to_pi.ps1
+deploy_agent.sh
