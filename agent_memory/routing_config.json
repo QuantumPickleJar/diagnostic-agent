@@ -1,9 +1,14 @@
 {
   "routing": {
     "delegation_threshold": 0.7,
-    "wake_on_lan_enabled": true,
-    "dev_machine_mac": "A1:B2:C3:D4:E5:F6",
-    "dev_machine_ip": "192.168.1.100",
-    "dev_machine_port": 22
+    "wake_on_lan_enabled": "${WAKE_ON_LAN_ENABLED:-true}",
+    "dev_machine_mac": "${DEV_MACHINE_MAC:-98:48:27:C6:51:05}",
+    "dev_machine_ip": "${DEV_MACHINE_IP:-192.168.1.213}",
+    "dev_machine_port": "${DEV_MACHINE_PORT:-22}",
+    "dev_machine_user": "${DEV_MACHINE_USER:-vincent}",
+    "ssh_timeout": "${SSH_TIMEOUT:-5}",
+    "ssh_max_retries": "${SSH_MAX_RETRIES:-10}",
+    "ssh_retry_delay": "${SSH_RETRY_DELAY:-15}",
+    "bridge_check_interval": "${BRIDGE_CHECK_INTERVAL:-300}"
   }
 }
