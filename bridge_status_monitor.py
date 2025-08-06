@@ -13,6 +13,10 @@ import logging
 import threading
 from pathlib import Path
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -25,17 +29,19 @@ class BridgeStatusMonitor:
         self.config_file = self.memory_dir / "routing_config.json"
         self.status_file = self.memory_dir / "bridge_status.json"
         
-        # Default configuration
+        # Configuration from environment variables with fallbacks
         self.config = {
-            "dev_machine_mac": "AA:BB:CC:DD:EE:FF",  # Will be updated from routing_config
-            "dev_machine_ip": "192.168.1.100",
-            "dev_machine_port": 22,
-            "dev_machine_user": "vincent",  # Updated to match bridge_checker.py
-            "check_interval": 300,  # 5 minutes
-            "wake_retries": 3,
-            "retry_delay": 15
+            "dev_machine_mac": os.getenv("DEV_MACHINE_MAC", "98:48:27:C6:51:05"),
+            "dev_machine_ip": os.getenv("DEV_MACHINE_IP", "192.168.1.213"),
+            "dev_machine_port": int(os.getenv("DEV_MACHINE_PORT", "22")),
+            "dev_machine_user": os.getenv("DEV_MACHINE_USER", "vincent"),
+            "check_interval": int(os.getenv("BRIDGE_CHECK_INTERVAL", "300")),
+            "wake_retries": int(os.getenv("SSH_MAX_RETRIES", "3")),
+            "retry_delay": int(os.getenv("SSH_RETRY_DELAY", "15")),
+            "ssh_timeout": int(os.getenv("SSH_TIMEOUT", "5"))
         }
         
+        # Load any additional config from routing_config.json (legacy support)
         self.load_config()
         self.status = {
             "connected": False,
@@ -50,25 +56,37 @@ class BridgeStatusMonitor:
         self.monitor_thread = None
         
     def load_config(self):
-        """Load configuration from routing_config.json"""
+        """Load additional configuration from routing_config.json (legacy support)"""
         try:
             if self.config_file.exists():
                 with open(self.config_file) as f:
                     routing_config = json.load(f)
                     
-                # Extract bridge-specific config
+                # Extract bridge-specific config and merge with env vars (env vars take precedence)
                 routing = routing_config.get("routing", {})
-                self.config.update({
+                legacy_config = {
                     "dev_machine_mac": routing.get("dev_machine_mac", self.config["dev_machine_mac"]),
                     "dev_machine_ip": routing.get("dev_machine_ip", self.config["dev_machine_ip"]),
                     "dev_machine_port": routing.get("dev_machine_port", self.config["dev_machine_port"])
-                })
-                logger.info("Bridge monitor config loaded from routing_config.json")
+                }
+                
+                # Only update if env vars weren't set (preserving environment variable precedence)
+                for key, value in legacy_config.items():
+                    if key in self.config and self.config[key] in [
+                        "98:48:27:C6:51:05", "192.168.1.213", 22, "vincent"  # Default values
+                    ]:
+                        self.config[key] = value
+                        
+                logger.info("Bridge monitor config merged from routing_config.json")
         except Exception as e:
             logger.warning(f"Could not load routing config: {e}")
             
-    def is_ssh_reachable(self, ip, port=22, user=None, timeout=5):
-        """Test SSH connectivity"""
+    def is_ssh_reachable(self, ip=None, port=None, user=None, timeout=None):
+        """Test SSH connectivity using configured values"""
+        ip = ip or self.config["dev_machine_ip"]
+        port = port or self.config["dev_machine_port"]
+        user = user or self.config["dev_machine_user"]
+        timeout = timeout or self.config["ssh_timeout"]
         try:
             if user:
                 cmd = ["ssh", "-o", "ConnectTimeout=5", "-o", "BatchMode=yes", f"{user}@{ip}", "echo", "ok"]

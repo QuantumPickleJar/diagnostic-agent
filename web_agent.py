@@ -371,6 +371,13 @@ def index():
     """Serve the main interface"""
     return send_from_directory('.', 'index.html')
 
+@app.route('/favicon.ico')
+@error_handler
+def favicon():
+    """Serve favicon to prevent 404 errors"""
+    # Return a simple empty response for favicon
+    return '', 204  # No Content response
+
 @app.route('/status')
 @error_handler
 def status():
@@ -716,7 +723,12 @@ def routing_config():
                         "wake_on_lan_enabled": True,
                         "dev_machine_mac": "",
                         "dev_machine_ip": "",
-                        "dev_machine_port": 22
+                        "dev_machine_port": 22,
+                        "dev_machine_user": "vince",
+                        "ssh_timeout": 5,
+                        "ssh_max_retries": 10,
+                        "ssh_retry_delay": 15,
+                        "bridge_check_interval": 300
                     }
                 })
         except Exception as e:
@@ -741,12 +753,24 @@ def routing_config():
                 }
             
             # Update provided fields
-            if "dev_machine_ip" in data:
-                current_config["routing"]["dev_machine_ip"] = data["dev_machine_ip"]
-            if "dev_machine_mac" in data:
-                current_config["routing"]["dev_machine_mac"] = data["dev_machine_mac"]
-            if "dev_machine_port" in data:
-                current_config["routing"]["dev_machine_port"] = int(data["dev_machine_port"])
+            routing_fields = [
+                "dev_machine_ip", "dev_machine_mac", "dev_machine_port", 
+                "dev_machine_user", "ssh_timeout", "ssh_max_retries", 
+                "ssh_retry_delay", "bridge_check_interval", "delegation_threshold",
+                "wake_on_lan_enabled"
+            ]
+            
+            for field in routing_fields:
+                if field in data:
+                    if field in ["dev_machine_port", "ssh_timeout", "ssh_max_retries", 
+                                "ssh_retry_delay", "bridge_check_interval"]:
+                        current_config["routing"][field] = int(data[field])
+                    elif field == "delegation_threshold":
+                        current_config["routing"][field] = float(data[field])
+                    elif field == "wake_on_lan_enabled":
+                        current_config["routing"][field] = bool(data[field])
+                    else:
+                        current_config["routing"][field] = data[field]
             
             # Save updated configuration
             with open(routing_config_file, 'w') as f:

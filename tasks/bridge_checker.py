@@ -2,15 +2,21 @@ import subprocess
 import time
 import socket
 import os
+from dotenv import load_dotenv
 
-DEV_MAC = "AA:BB:CC:DD:EE:FF"  # Replace with your dev machine's MAC
-DEV_IP = "192.168.1.100"        # Replace with your dev machine's static IP
-MAX_RETRIES = 10
-RETRY_DELAY = 15  # seconds
+# Load environment variables
+load_dotenv()
+
+DEV_MAC = os.getenv("DEV_MACHINE_MAC", "98:48:27:C6:51:05")
+DEV_IP = os.getenv("DEV_MACHINE_IP", "192.168.1.213")
+DEV_USER = os.getenv("DEV_MACHINE_USER", "vincent")
+SSH_TIMEOUT = int(os.getenv("SSH_TIMEOUT", "5"))
+MAX_RETRIES = int(os.getenv("SSH_MAX_RETRIES", "10"))
+RETRY_DELAY = int(os.getenv("SSH_RETRY_DELAY", "15"))
 
 def is_ssh_up(ip):
     try:
-        subprocess.run(["ssh", "-o", "ConnectTimeout=5", f"vincent@{ip}", "echo ok"],
+        subprocess.run(["ssh", "-o", f"ConnectTimeout={SSH_TIMEOUT}", f"{DEV_USER}@{ip}", "echo ok"],
                        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return True
     except subprocess.CalledProcessError:

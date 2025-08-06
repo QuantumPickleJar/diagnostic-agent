@@ -162,9 +162,15 @@
       <hr style="border-color: #00ff88; margin: 1em 0;">
       <h4>🌐 Network Routing</h4>
       <label>Dev Machine IP: <input type="text" id="devMachineIP" placeholder="192.168.1.213" style="width: 120px; margin-left: 0.5em;"></label>
-      <label>Dev Machine MAC: <input type="text" id="devMachineMAC" placeholder="AA:BB:CC:DD:EE:FF" style="width: 140px; margin-left: 0.5em;"></label>
+      <label>Dev Machine MAC: <input type="text" id="devMachineMAC" placeholder="98:48:27:C6:51:05" style="width: 140px; margin-left: 0.5em;"></label>
       <label>SSH Port: <input type="number" id="devMachinePort" placeholder="22" style="width: 60px; margin-left: 0.5em;"></label>
+      <label>SSH User: <input type="text" id="devMachineUser" placeholder="vincent" style="width: 80px; margin-left: 0.5em;"></label>
+      <label>SSH Timeout: <input type="number" id="sshTimeout" placeholder="5" style="width: 60px; margin-left: 0.5em;"> sec</label>
+      <label>Max Retries: <input type="number" id="sshMaxRetries" placeholder="10" style="width: 60px; margin-left: 0.5em;"></label>
+      <label>Retry Delay: <input type="number" id="sshRetryDelay" placeholder="15" style="width: 60px; margin-left: 0.5em;"> sec</label>
+      <label>Check Interval: <input type="number" id="bridgeCheckInterval" placeholder="300" style="width: 60px; margin-left: 0.5em;"> sec</label>
       <button onclick="saveRoutingConfig()" style="margin-top: 0.5em;">💾 Save Network Config</button>
+      <button onclick="loadRoutingConfig()" style="margin-top: 0.5em; margin-left: 0.5em;">🔄 Load Current Config</button>
       
       <hr style="border-color: #00ff88; margin: 1em 0;">
       <h4>🔗 Bridge Monitoring</h4>
@@ -437,12 +443,52 @@
     }
 
     // Routing configuration functions
+    async function loadRoutingConfig() {
+      try {
+        const response = await fetch('/routing_config');
+        if (response.ok) {
+          const config = await response.json();
+          const routing = config.routing || {};
+          
+          // Load values into form fields
+          document.getElementById('devMachineIP').value = routing.dev_machine_ip || '';
+          document.getElementById('devMachineMAC').value = routing.dev_machine_mac || '';
+          document.getElementById('devMachinePort').value = routing.dev_machine_port || 22;
+          document.getElementById('devMachineUser').value = routing.dev_machine_user || 'vincent';
+          document.getElementById('sshTimeout').value = routing.ssh_timeout || 5;
+          document.getElementById('sshMaxRetries').value = routing.ssh_max_retries || 10;
+          document.getElementById('sshRetryDelay').value = routing.ssh_retry_delay || 15;
+          document.getElementById('bridgeCheckInterval').value = routing.bridge_check_interval || 300;
+          document.getElementById('semanticThreshold').value = routing.delegation_threshold || 0.7;
+          document.getElementById('thresholdValue').textContent = (routing.delegation_threshold || 0.7).toFixed(2);
+          document.getElementById('wakeToggle').checked = routing.wake_on_lan_enabled !== false;
+          
+          const timestamp = new Date().toLocaleTimeString();
+          const output = document.getElementById('output');
+          output.innerHTML += `<div class="chat-message">
+            <span class="chat-agent">>_ System:</span> <span class="chat-timestamp">[${timestamp}]</span><br>
+            Routing configuration loaded successfully.
+          </div>`;
+          output.scrollTop = output.scrollHeight;
+        }
+      } catch (err) {
+        console.error('Error loading routing config:', err);
+      }
+    }
+
     async function saveRoutingConfig() {
       try {
         const config = {
           dev_machine_ip: document.getElementById('devMachineIP').value,
           dev_machine_mac: document.getElementById('devMachineMAC').value,
-          dev_machine_port: parseInt(document.getElementById('devMachinePort').value) || 22
+          dev_machine_port: parseInt(document.getElementById('devMachinePort').value) || 22,
+          dev_machine_user: document.getElementById('devMachineUser').value,
+          ssh_timeout: parseInt(document.getElementById('sshTimeout').value) || 5,
+          ssh_max_retries: parseInt(document.getElementById('sshMaxRetries').value) || 10,
+          ssh_retry_delay: parseInt(document.getElementById('sshRetryDelay').value) || 15,
+          bridge_check_interval: parseInt(document.getElementById('bridgeCheckInterval').value) || 300,
+          delegation_threshold: parseFloat(document.getElementById('semanticThreshold').value) || 0.7,
+          wake_on_lan_enabled: document.getElementById('wakeToggle').checked
         };
         
         const response = await fetch('/routing_config', {
@@ -469,6 +515,9 @@
 
     setInterval(updateStatus, 15000);
     updateStatus();
+    
+    // Load routing configuration on page load
+    loadRoutingConfig();
   </script>
 </body>
 </html>
