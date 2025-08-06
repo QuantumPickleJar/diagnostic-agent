@@ -21,7 +21,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt /tmp/
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --upgrade pip && \
-    pip wheel --no-cache-dir --no-deps --wheel-dir /wheels \
+    # Build wheels with dependencies for better compatibility
+    pip wheel --no-cache-dir --wheel-dir /wheels \
     -r /tmp/requirements.txt
 
 # Stage 2: Runtime image (much smaller)

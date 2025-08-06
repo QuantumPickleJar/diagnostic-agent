@@ -9,17 +9,36 @@ load_dotenv()
 
 DEV_MAC = os.getenv("DEV_MACHINE_MAC", "98:48:27:C6:51:05")
 DEV_IP = os.getenv("DEV_MACHINE_IP", "192.168.1.213")
-DEV_USER = os.getenv("DEV_MACHINE_USER", "vincent")
+DEV_PORT = os.getenv("DEV_MACHINE_PORT", "2222")  # Fixed: use correct port
+DEV_USER = os.getenv("DEV_MACHINE_USER", "castlebravo")  # Fixed: use correct user
 SSH_TIMEOUT = int(os.getenv("SSH_TIMEOUT", "5"))
-MAX_RETRIES = int(os.getenv("SSH_MAX_RETRIES", "10"))
-RETRY_DELAY = int(os.getenv("SSH_RETRY_DELAY", "15"))
+MAX_RETRIES = int(os.getenv("SSH_MAX_RETRIES", "3"))  # Reduced for faster testing
+RETRY_DELAY = int(os.getenv("SSH_RETRY_DELAY", "10"))  # Reduced for faster testing
 
-def is_ssh_up(ip):
+def is_ssh_up(ip, port=DEV_PORT, user=DEV_USER):
+    """Check if SSH is responsive with proper timeout handling"""
     try:
-        subprocess.run(["ssh", "-o", f"ConnectTimeout={SSH_TIMEOUT}", f"{DEV_USER}@{ip}", "echo ok"],
-                       check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # Use proper SSH options to prevent hanging
+        cmd = [
+            "ssh", 
+            "-o", f"ConnectTimeout={SSH_TIMEOUT}",
+            "-o", "StrictHostKeyChecking=no",
+            "-o", "UserKnownHostsFile=/dev/null",
+            "-o", "LogLevel=ERROR",
+            "-p", str(port),
+            f"{user}@{ip}", 
+            "echo ok"
+        ]
+        
+        result = subprocess.run(
+            cmd,
+            check=True, 
+            stdout=subprocess.DEVNULL, 
+            stderr=subprocess.DEVNULL,
+            timeout=SSH_TIMEOUT + 2  # Additional timeout safety
+        )
         return True
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return False
 
 def send_magic_packet(mac):

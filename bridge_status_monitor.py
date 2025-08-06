@@ -33,8 +33,8 @@ class BridgeStatusMonitor:
         self.config = {
             "dev_machine_mac": os.getenv("DEV_MACHINE_MAC", "98:48:27:C6:51:05"),
             "dev_machine_ip": os.getenv("DEV_MACHINE_IP", "192.168.1.213"),
-            "dev_machine_port": int(os.getenv("DEV_MACHINE_PORT", "22")),
-            "dev_machine_user": os.getenv("DEV_MACHINE_USER", "vincent"),
+            "dev_machine_port": int(os.getenv("DEV_MACHINE_PORT", "2222")),
+            "dev_machine_user": os.getenv("DEV_MACHINE_USER", "castlebravo"),
             "check_interval": int(os.getenv("BRIDGE_CHECK_INTERVAL", "300")),
             "wake_retries": int(os.getenv("SSH_MAX_RETRIES", "3")),
             "retry_delay": int(os.getenv("SSH_RETRY_DELAY", "15")),
@@ -89,13 +89,24 @@ class BridgeStatusMonitor:
         timeout = timeout or self.config["ssh_timeout"]
         try:
             if user:
-                cmd = ["ssh", "-o", "ConnectTimeout=5", "-o", "BatchMode=yes", f"{user}@{ip}", "echo", "ok"]
+                # Use proper SSH options with correct port and timeout handling
+                cmd = [
+                    "ssh", 
+                    "-o", f"ConnectTimeout={timeout}",
+                    "-o", "StrictHostKeyChecking=no",
+                    "-o", "UserKnownHostsFile=/dev/null",
+                    "-o", "LogLevel=ERROR",
+                    "-o", "BatchMode=yes",
+                    "-p", str(port),
+                    f"{user}@{ip}", 
+                    "echo", "ok"
+                ]
             else:
                 # Just test port connectivity
                 with socket.create_connection((ip, port), timeout=timeout):
                     return True
             
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout + 2)
             return result.returncode == 0
         except Exception as e:
             logger.debug(f"SSH check failed: {e}")

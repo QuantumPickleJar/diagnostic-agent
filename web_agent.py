@@ -670,6 +670,13 @@ def bridge_status():
     return jsonify(get_bridge_status())
 
 
+@app.route('/bridge/status', methods=['GET'])
+@error_handler
+def bridge_status_alt():
+    """Return current SSH bridge status (alternative endpoint)"""
+    return jsonify(get_bridge_status())
+
+
 @app.route('/bridge/detailed_status', methods=['GET'])
 @error_handler
 def bridge_detailed_status():
