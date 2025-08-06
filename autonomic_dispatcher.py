@@ -262,11 +262,13 @@ def run_remote(task_text):
     try:
         # Use SSH to execute on the dev machine
         # Assume the dev machine has a similar agent setup
+        # Escape quotes outside f-string to avoid backslash in f-string
+        escaped_task = task_text.replace('"', '\\"')
         ssh_command = [
             "ssh", 
             "-p", str(DEV_PORT),
             f"{DEV_USER}@{DEV_HOST}",
-            f"cd ~/diagnostic-agent && python3 -c \"from unified_smart_agent import smart_agent; print(smart_agent.process_query('{task_text.replace('\"', '\\\"')}'))\""
+            f"cd ~/diagnostic-agent && python3 -c \"from unified_smart_agent import smart_agent; print(smart_agent.process_query('{escaped_task}'))\""
         ]
         
         result = subprocess.run(
