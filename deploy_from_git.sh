@@ -8,7 +8,7 @@ set -e
 echo "🚀 Deploying Diagnostic Agent from Git..."
 
 # Configuration
-REPO_DIR="/home//diagnostic-agent"
+REPO_DIR="/home/diagnostic-agent"
 BRANCH="main"  # or whatever branch you want to deploy
 
 # Change to repo directory
