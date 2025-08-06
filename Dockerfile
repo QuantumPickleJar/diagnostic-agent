@@ -58,15 +58,18 @@ RUN useradd -m -u 1000 agent && \
     groupadd -f docker && \
     usermod -aG docker agent
 
-# Set working directory and switch user
+# Set working directory and create necessary directories with proper ownership
 WORKDIR /app
+RUN mkdir -p /app/agent_memory \
+    /app/agent_memory/archived_sessions \
+    /app/logs && \
+    chown -R agent:agent /app
+
+# Switch to agent user
 USER agent
 
-# Create necessary directories
-RUN mkdir -p /home/agent/.cache/sentence_transformers \
-    /app/agent_memory \
-    /app/agent_memory/archived_sessions \
-    /app/logs
+# Create user cache directory
+RUN mkdir -p /home/agent/.cache/sentence_transformers
 
 # Copy application files (this layer changes most often, so put it last)
 COPY --chown=agent:agent . .
