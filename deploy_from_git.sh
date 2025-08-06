@@ -8,7 +8,7 @@ set -e
 echo "🚀 Deploying Diagnostic Agent from Git..."
 
 # Configuration
-REPO_DIR="/home//diagnostic-agent"
+REPO_DIR="/home/diagnostic-agent"
 BRANCH="main"  # or whatever branch you want to deploy
 
 # Change to repo directory
@@ -39,13 +39,13 @@ fi
 
 # Update docker-compose to use latest tag
 echo "🔄 Updating docker-compose configuration..."
-if [ -f "docker-compose.production.yml" ]; then
+if [ -f "docker compose.production.yml" ]; then
     # Temporarily update the image tag in docker-compose
-    sed -i 's/diagnostic-agent:[a-zA-Z0-9_-]*/diagnostic-agent:latest/g' docker-compose.production.yml
-    
+    sed -i 's/diagnostic-agent:[a-zA-Z0-9_-]*/diagnostic-agent:latest/g' docker compose.production.yml
+
     # Start containers with new image
     echo "▶️ Starting containers..."
-    docker-compose -f docker-compose.production.yml up -d
+    docker-compose -f docker compose.production.yml up -d
 else
     # Fallback to simple docker run
     echo "▶️ Starting container..."
