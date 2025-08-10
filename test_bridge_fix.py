@@ -25,7 +25,7 @@ def test_environment():
     print(f"   User: {user}")
     print(f"   MAC: {mac}")
     
-    if port != "2222" or user != "castlebravo":
+    if port != "2222" or user != "vince":
         print("❌ Environment variables not properly configured!")
         return False
     
@@ -41,7 +41,7 @@ def test_bridge_checker():
         
         print(f"   Bridge checker config: {DEV_USER}@{DEV_IP}:{DEV_PORT}")
         
-        if DEV_PORT != "2222" or DEV_USER != "castlebravo":
+        if DEV_PORT != "2222" or DEV_USER != "vince":
             print("❌ Bridge checker using wrong configuration!")
             return False
             
