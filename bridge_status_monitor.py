@@ -31,10 +31,10 @@ class BridgeStatusMonitor:
         
         # Configuration from environment variables with fallbacks
         self.config = {
-            "dev_machine_mac": os.getenv("DEV_MACHINE_MAC", "98:48:27:C6:51:05"),
-            "dev_machine_ip": os.getenv("DEV_MACHINE_IP", "192.168.1.213"),
+            "dev_machine_mac": os.getenv("DEV_MACHINE_MAC", "XX:XX:XX:XX:XX:XX"),
+            "dev_machine_ip": os.getenv("DEV_MACHINE_IP", "192.168.1.XXX"),
             "dev_machine_port": int(os.getenv("DEV_MACHINE_PORT", "2222")),
-            "dev_machine_user": os.getenv("DEV_MACHINE_USER", "castlebravo"),
+            "dev_machine_user": os.getenv("DEV_MACHINE_USER", "your_username"),
             "check_interval": int(os.getenv("BRIDGE_CHECK_INTERVAL", "300")),
             "wake_retries": int(os.getenv("SSH_MAX_RETRIES", "3")),
             "retry_delay": int(os.getenv("SSH_RETRY_DELAY", "15")),
@@ -73,7 +73,7 @@ class BridgeStatusMonitor:
                 # Only update if env vars weren't set (preserving environment variable precedence)
                 for key, value in legacy_config.items():
                     if key in self.config and self.config[key] in [
-                        "98:48:27:C6:51:05", "192.168.1.213", 22, "vincent"  # Default values
+                        "XX:XX:XX:XX:XX:XX", "192.168.1.XXX", 22, "your_username"  # Default values
                     ]:
                         self.config[key] = value
                         
