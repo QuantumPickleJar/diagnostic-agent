@@ -37,6 +37,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     wakeonlan \
     libgomp1 \
+    libomp-dev \
     openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
@@ -69,10 +70,15 @@ RUN mkdir -p /app/agent_memory \
 # Create user cache directory with proper permissions (as root)
 RUN mkdir -p /home/agent/.cache/sentence_transformers && \
     mkdir -p /home/agent/.cache/huggingface/hub && \
+    chmod -R 755 /home/agent/.cache && \
     chown -R agent:agent /home/agent/.cache
 
 # IMPORTANT: Copy ALL application files
 COPY --chown=agent:agent . .
+
+# Copy and set up entrypoint script (as root)
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Switch to agent user
 USER agent
@@ -81,6 +87,8 @@ USER agent
 ENV PYTHONPATH=/app
 ENV FLASK_APP=web_agent.py
 ENV FLASK_ENV=production
+ENV TRANSFORMERS_CACHE=/home/agent/.cache/huggingface
+ENV SENTENCE_TRANSFORMERS_HOME=/home/agent/.cache/sentence_transformers
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
@@ -89,5 +97,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 # Expose port
 EXPOSE 5000
 
-# Run the application
-CMD ["python", "web_agent.py"]
+# Use custom entrypoint for proper initialization
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
