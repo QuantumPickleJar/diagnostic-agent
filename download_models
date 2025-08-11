@@ -194,7 +194,7 @@ if check_models; then
     echo -e "\n${GREEN}🎯 Next steps:${NC}"
     echo "  1. Test locally: python3 unified_smart_agent.py"
     echo "  2. Deploy to Pi: ./deploy_to_pi.ps1 -RestartService"
-    echo "  3. Access web interface at http://picklegate.ddns.net:5000"
+    echo "  3. Access web interface at http://your_pi_host:5000"
     
 else
     echo -e "\n${RED}❌ Model verification failed${NC}"
