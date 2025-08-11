@@ -298,20 +298,41 @@ def run_local(task_text):
         # Import and use the local smart agent with timeout
         from unified_smart_agent import smart_agent
         
-        # Set a 60-second timeout for Pi processing
-        import signal
+        # Use threading.Timer for thread-safe timeout (since we're in Flask worker threads)
+        import threading
+        import time
         
-        def timeout_handler(signum, frame):
-            raise TimeoutError("Pi execution timeout after 60 seconds")
+        result = None
+        exception = None
         
-        signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(60)  # 60 second timeout
+        def run_agent():
+            nonlocal result, exception
+            try:
+                result = smart_agent.process_query(task_text)
+            except Exception as e:
+                exception = e
         
-        try:
-            result = smart_agent.process_query(task_text)
-        finally:
-            signal.alarm(0)  # Clear the alarm
+        # Start the agent in a separate thread
+        agent_thread = threading.Thread(target=run_agent)
+        agent_thread.daemon = True
+        agent_thread.start()
         
+        # Wait for completion with timeout
+        agent_thread.join(timeout=60)
+        
+        if agent_thread.is_alive():
+            # Timeout occurred
+            error_msg = "Pi execution timed out after 60 seconds"
+            logger.error(error_msg)
+            log_event("local_execution_timeout", {
+                "task": task_text[:100] + "..." if len(task_text) > 100 else task_text,
+                "timeout": 60
+            })
+            return f"[LOCAL TIMEOUT] {error_msg}"
+        
+        if exception:
+            raise exception
+            
         log_event("local_execution", {
             "task": task_text[:100] + "..." if len(task_text) > 100 else task_text,
             "success": True,
@@ -319,15 +340,6 @@ def run_local(task_text):
         })
         
         return f"[LOCAL] {result}"
-        
-    except TimeoutError:
-        error_msg = "Pi execution timed out after 60 seconds"
-        logger.error(error_msg)
-        log_event("local_execution_timeout", {
-            "task": task_text[:100] + "..." if len(task_text) > 100 else task_text,
-            "timeout": 60
-        })
-        return f"[LOCAL TIMEOUT] {error_msg}"
     except Exception as e:
         error_msg = f"Local execution failed: {str(e)}"
         logger.error(error_msg)

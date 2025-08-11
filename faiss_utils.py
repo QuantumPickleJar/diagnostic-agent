@@ -47,10 +47,15 @@ def get_model():
             
             for model_path in local_model_paths:
                 if os.path.exists(model_path) and os.listdir(model_path):
-                    print(f"Loading local model from {model_path}")
-                    _model = SentenceTransformer(model_path)
-                    print("Local model loaded successfully")
-                    return _model
+                    # Check if this is a valid sentence transformer model
+                    config_path = os.path.join(model_path, "config.json")
+                    if os.path.exists(config_path):
+                        print(f"Loading local model from {model_path}")
+                        _model = SentenceTransformer(model_path)
+                        print("Local model loaded successfully")
+                        return _model
+                    else:
+                        print(f"Skipping incomplete model at {model_path} (no config.json)")
             
             # Check if model is already cached
             cache_dir = os.path.expanduser("~/.cache/sentence_transformers")
