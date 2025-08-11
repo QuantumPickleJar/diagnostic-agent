@@ -30,8 +30,8 @@ param(
 $ErrorActionPreference = "Stop"
 
 # Configuration
-$PI_USER = "castlebravo"
-$PI_HOST = "picklegate.ddns.net"
+$PI_USER = "your_pi_user"
+$PI_HOST = "your_pi_host.local"
 $PI_PORT = "2222"
 $IMAGE_NAME = "diagnostic-agent"
 $CONTAINER_NAME = "diagnostic-journalist"
@@ -123,7 +123,7 @@ try {
     $composeFile = if ($UseProduction) { "docker-compose.yml" } else { "docker-compose.fast.yml" }
     
     $deployCommands = @(
-        "cd /home/castlebravo/diagnostic-agent",
+        "cd /home/diagnostic-agent",
         "docker-compose -f $composeFile down || true",
         "docker tag $FULL_IMAGE_NAME diagnostic-agent:latest",
         "docker-compose -f $composeFile up -d"
