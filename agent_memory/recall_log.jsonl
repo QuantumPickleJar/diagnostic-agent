@@ -1,0 +1,10 @@
+{"timestamp": "2025-08-10T19:24:57Z", "event_type": "dispatch_decision", "data": {"score": 0.8489583333333333, "threshold": 0.7, "reason": "Task score: 0.85 vs threshold: 0.70", "execute_remote": true, "task_preview": "Provide comprehensive analysis of Docker orchestration best practices"}}
+{"task": "Provide comprehensive analysis of Docker orchestration best practices", "score": 0.849, "routed_to": "dev"}
+{"timestamp": "2025-08-10T19:25:27Z", "event_type": "remote_execution_timeout", "data": {"task": "Provide comprehensive analysis of Docker orchestration best practices", "timeout": 30}}
+{"timestamp": "2025-08-10T19:25:27Z", "event_type": "local_execution_error", "data": {"task": "Provide comprehensive analysis of Docker orchestration best practices", "error": "No module named 'psutil'"}}
+{"timestamp": "2025-08-10T19:25:27Z", "event_type": "dispatch_decision", "data": {"score": 0.0, "threshold": 0.7, "reason": "Task score: 0.00 vs threshold: 0.70", "execute_remote": false, "task_preview": "show system status"}}
+{"task": "show system status", "score": 0.0, "routed_to": "local"}
+{"timestamp": "2025-08-10T19:25:27Z", "event_type": "local_execution_error", "data": {"task": "show system status", "error": "No module named 'psutil'"}}
+{"timestamp": "2025-08-11T03:08:34Z", "event_type": "dispatch_decision", "data": {"score": 0.6510416666666666, "threshold": 0.7, "reason": "Forced local execution", "execute_remote": false, "task_preview": "list all running containers"}}
+{"task": "list all running containers", "score": 0.651, "routed_to": "local"}
+{"timestamp": "2025-08-11T03:08:34Z", "event_type": "local_execution_error", "data": {"task": "list all running containers", "error": "No module named 'psutil'"}}
