@@ -203,5 +203,14 @@ __marimo__/
 .streamlit/secrets.toml
 .github/instructions/castlebravo.instructions.md
 README.md
+# Deployment scripts with sensitive connection info
 deploy_to_pi.ps1
 deploy_agent.sh
+deploy_fixed.ps1
+cross_compile_and_deploy.ps1
+cross_compile_fast.ps1
+
+# Sensitive configuration files
+routing_config.json
+agent_memory/routing_config.json
+.env

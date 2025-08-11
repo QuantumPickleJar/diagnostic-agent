@@ -1,0 +1,15 @@
+# Exclude large model files during build
+models/*.gguf
+models/tinyllama*
+models/OpenHermes*
+
+# Exclude other unnecessary files
+__pycache__/
+*.pyc
+.git/
+debug.log
+*.tar
+.env
+
+# Keep only small essential files
+!models/.gitkeep
