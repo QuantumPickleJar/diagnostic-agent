@@ -65,29 +65,82 @@ class SemanticTaskScorer:
         score = 0.0
         text_lower = text.lower()
 
-        # Context length and token count
-        length_norm = min(len(text) / 1000, 1.0)
-        token_norm = min(len(text.split()) / 200, 1.0)
-        score += 0.3 * length_norm
-        score += 0.3 * token_norm
+        # Context length and token count (more generous thresholds)
+        length_norm = min(len(text) / 80, 1.0)  # Lower threshold for length
+        token_norm = min(len(text.split()) / 15, 1.0)  # Lower threshold for tokens
+        score += 0.25 * length_norm  # Higher weight for complexity
+        score += 0.25 * token_norm
 
-        # Keyword analysis
+        # Keyword analysis (expanded heavy keywords with higher weights)
         heavy_keywords = [
             "optimize", "analyze", "summarize", "plan", "research",
-            "implement", "generate", "build", "develop"
+            "implement", "generate", "build", "develop", "comprehensive",
+            "detailed", "troubleshoot", "diagnostic", "configuration", 
+            "investigate", "performance", "security", "vulnerability",
+            "orchestration", "deployment", "architecture", "system",
+            "complex", "advanced", "sophisticated", "intricate", "thorough"
         ]
-        light_keywords = ["list", "show", "echo", "simple", "test", "example", "help"]
-        if any(k in text_lower for k in heavy_keywords):
-            score += 0.2
-        if any(k in text_lower for k in light_keywords):
-            score -= 0.2
+        
+        # Additional complexity indicators
+        complexity_indicators = [
+            "network", "docker", "container", "database", "server",
+            "monitoring", "logging", "backup", "restore", "migration",
+            "deployment", "scaling", "load", "performance", "memory",
+            "cpu", "disk", "storage", "bandwidth", "latency", "infrastructure",
+            "automation", "orchestration", "microservices", "kubernetes"
+        ]
+        
+        # Container-specific queries that often need dev machine access
+        container_routing_keywords = [
+            "containers", "docker ps", "docker images", "docker logs",
+            "docker exec", "docker inspect", "container status", "running containers",
+            "container info", "container details", "docker system", "docker stats"
+        ]
+        
+        light_keywords = ["list", "show", "echo", "simple", "test", "example", "help", "check", "status", "hello"]
+        
+        # Count keyword matches for more nuanced scoring
+        heavy_matches = sum(1 for k in heavy_keywords if k in text_lower)
+        complexity_matches = sum(1 for k in complexity_indicators if k in text_lower)
+        container_matches = sum(1 for k in container_routing_keywords if k in text_lower)
+        light_matches = sum(1 for k in light_keywords if k in text_lower)
+        
+        # Special handling for container queries that need external access
+        if container_matches > 0:
+            # Container queries often need dev machine access if local Docker isn't available
+            score += min(0.6, 0.25 * container_matches)  # Higher weight for container queries (up to 0.6)
+        
+        # Weight based on number of matches
+        if heavy_matches > 0:
+            score += min(0.4, 0.15 * heavy_matches)  # Up to 0.4 for heavy keywords
+        if complexity_matches > 0:
+            score += min(0.3, 0.1 * complexity_matches)  # Up to 0.3 for complexity
+        if light_matches > 0 and container_matches == 0:  # Don't penalize if container-related
+            score -= min(0.4, 0.2 * light_matches)  # Penalize simple queries
 
-        # Embedding similarity (optional)
+        # Embedding similarity (if available)
         if self.embed_ok:
-            emb = self.model.encode([text])
-            heavy_sim = float(self.util.cos_sim(emb, self.heavy_emb).max())
-            light_sim = float(self.util.cos_sim(emb, self.light_emb).max())
-            score += 0.2 * ((heavy_sim - light_sim + 1) / 2)
+            try:
+                emb = self.model.encode([text])
+                heavy_sim = float(self.util.cos_sim(emb, self.heavy_emb).max())
+                light_sim = float(self.util.cos_sim(emb, self.light_emb).max())
+                
+                # More aggressive embedding scoring
+                if heavy_sim > 0.6:  # Strong similarity to complex tasks
+                    score += 0.3
+                elif heavy_sim > 0.4:  # Medium similarity
+                    score += 0.2
+                elif heavy_sim > 0.3:  # Weak similarity
+                    score += 0.1
+                    
+                if light_sim > 0.7:  # Very similar to simple tasks
+                    score -= 0.3
+                elif light_sim > 0.5:  # Somewhat similar to simple tasks
+                    score -= 0.2
+                    
+            except Exception:
+                # Fallback if embeddings fail at runtime
+                pass
 
         return max(0.0, min(1.0, score))
 

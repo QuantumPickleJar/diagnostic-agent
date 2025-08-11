@@ -123,6 +123,86 @@
       max-height: 300px;
       overflow-y: auto;
     }
+    .stats-viewer {
+      display: none;
+      margin-top: 1em;
+      background: #0a0a0a;
+      border: 1px solid #00ff88;
+      padding: 1em;
+      max-height: 600px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+    }
+    .terminal-box {
+      background: #1a1a1a;
+      border: 1px solid #00aa66;
+      margin: 0.5em 0;
+      border-radius: 2px;
+    }
+    .terminal-header {
+      background: #00aa66;
+      color: #000;
+      padding: 0.3em 0.5em;
+      font-weight: bold;
+      font-size: 0.9em;
+    }
+    .terminal-content {
+      padding: 0.5em;
+      color: #00ff88;
+      line-height: 1.4;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 0.5em;
+      margin: 0.5em 0;
+    }
+    .stats-card {
+      background: #1a1a1a;
+      border: 1px solid #00aa66;
+      padding: 0.5em;
+      text-align: center;
+    }
+    .stats-value {
+      font-size: 1.2em;
+      font-weight: bold;
+      color: #00ff88;
+    }
+    .performance-excellent { color: #00ff88; }
+    .performance-good { color: #88ff00; }
+    .performance-acceptable { color: #ffaa00; }
+    .performance-slow { color: #ff8800; }
+    .ascii-chart {
+      background: #0a0a0a;
+      border: 1px solid #333;
+      padding: 0.5em;
+      font-family: 'Courier New', monospace;
+      white-space: pre;
+      font-size: 0.8em;
+      overflow-x: auto;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1em;
+      margin: 1em 0;
+    }
+    .stats-card {
+      background: #2a2a2a;
+      border: 1px solid #00ff88;
+      padding: 0.5em;
+      border-radius: 3px;
+    }
+    .stats-value {
+      font-size: 1.2em;
+      color: #00ff88;
+      font-weight: bold;
+    }
+    .performance-excellent { color: #00ff88; }
+    .performance-good { color: #88ff00; }
+    .performance-acceptable { color: #ffaa00; }
+    .performance-slow { color: #ff8800; }
+    .performance-timeout_risk { color: #ff4444; }
     .task-bar {
       padding: 0.25em;
       margin-bottom: 0.25em;
@@ -149,9 +229,11 @@
 
     <div class="tabs">
       <button class="tab-button" onclick="toggleLog()">📜 View Recall Log</button>
+      <button class="tab-button" onclick="toggleStats()">📊 Stats</button>
       <button class="tab-button" onclick="toggleSettings()">⚙️ Settings</button>
     </div>
     <div class="log-viewer" id="logViewer">[Recall log will be loaded here]</div>
+    <div class="stats-viewer" id="statsViewer">[Performance statistics will be loaded here]</div>
     <div class="settings-viewer" id="settingsViewer">
       <h4>🤖 Autonomous Routing</h4>
       <label><input type="checkbox" id="semanticToggle"> Enable semantic task scoring (experimental)</label>
@@ -305,6 +387,197 @@
         await loadSemanticSettings();
       } else {
         settings.style.display = 'none';
+      }
+    }
+
+    async function toggleStats() {
+      const stats = document.getElementById('statsViewer');
+      if (stats.style.display === 'none') {
+        stats.style.display = 'block';
+        await loadPerformanceStats();
+      } else {
+        stats.style.display = 'none';
+      }
+    }
+
+    async function loadPerformanceStats() {
+      try {
+        const [statsRes, chartRes, devAnalysisRes, insightsRes] = await Promise.all([
+          fetch('/stats/performance?hours=24'),
+          fetch('/stats/ascii_chart?hours=24'),
+          fetch('/stats/dev_analysis?hours=24'),
+          fetch('/stats/insights?hours=24')
+        ]);
+        
+        if (!statsRes.ok) {
+          document.getElementById('statsViewer').innerHTML = '<span style="color: #ff4444;">Statistics service unavailable</span>';
+          return;
+        }
+        
+        const stats = await statsRes.json();
+        const chart = chartRes.ok ? await chartRes.json() : null;
+        const devAnalysis = devAnalysisRes.ok ? await devAnalysisRes.json() : null;
+        const insights = insightsRes.ok ? await insightsRes.json() : null;
+        
+        renderPerformanceStats(stats, chart, devAnalysis, insights);
+        
+      } catch (error) {
+        document.getElementById('statsViewer').innerHTML = `<span style="color: #ff4444;">Failed to load statistics: ${error.message}</span>`;
+      }
+    }
+
+    function renderPerformanceStats(stats, chart, devAnalysis, insights) {
+      const container = document.getElementById('statsViewer');
+      const uptime = formatDuration(stats.summary.session_uptime);
+      
+      let content = `
+        <h4>📊 Performance Analytics (24h)</h4>
+        <div class="stats-grid">
+          <div class="stats-card">
+            <div>Total Queries</div>
+            <div class="stats-value">${stats.summary.total_queries}</div>
+          </div>
+          <div class="stats-card">
+            <div>Success Rate</div>
+            <div class="stats-value">${stats.summary.success_rate.toFixed(1)}%</div>
+          </div>
+          <div class="stats-card">
+            <div>Local Queries</div>
+            <div class="stats-value">${stats.summary.local_queries}</div>
+          </div>
+          <div class="stats-card">
+            <div>Dev Machine Queries</div>
+            <div class="stats-value">${stats.summary.dev_queries}</div>
+          </div>
+        </div>
+        
+        <h5>⚡ Response Times</h5>
+        <div class="stats-grid">
+          <div class="stats-card">
+            <div>Pi Average</div>
+            <div class="stats-value ${getPerformanceClass(stats.performance.local.avg_duration, 'local')}">${formatDuration(stats.performance.local.avg_duration)}</div>
+          </div>
+          <div class="stats-card">
+            <div>Dev Average</div>
+            <div class="stats-value ${getPerformanceClass(stats.performance.dev.avg_duration, 'dev')}">${formatDuration(stats.performance.dev.avg_duration)}</div>
+          </div>
+        </div>`;
+      
+      // Add dev machine optimization analysis
+      if (devAnalysis && !devAnalysis.error) {
+        content += `
+        <h5>🔧 Dev Machine Analysis</h5>
+        <div class="terminal-box">
+          <div class="terminal-header">━━━ PERFORMANCE ANALYSIS ━━━</div>
+          <div class="terminal-content">
+            <div>Avg Response: ${formatDuration(devAnalysis.avg_response_time)} | Target: 15s</div>
+            <div>Slow Queries: ${devAnalysis.slow_queries_count}/${devAnalysis.total_dev_queries} (${(devAnalysis.slow_queries_count/devAnalysis.total_dev_queries*100).toFixed(1)}%)</div>
+            <div>Timeout Risk: ${devAnalysis.timeout_risk_count}</div>
+            
+            <div style="margin-top: 0.5em;">Performance Breakdown:</div>
+            <div class="ascii-chart" style="font-size: 0.8em;">
+              ${renderPerformanceBreakdown(devAnalysis.performance_breakdown)}
+            </div>
+            
+            <div style="margin-top: 0.5em; color: #ffaa00;">Optimization Recommendations:</div>
+            ${devAnalysis.optimization_recommendations.map(rec => `<div style="font-size: 0.85em; margin-left: 1em;">• ${rec}</div>`).join('')}
+          </div>
+        </div>`;
+      }
+      
+      // Add efficiency insights
+      if (insights && !insights.error && insights.efficiency_comparison) {
+        const ratio = insights.efficiency_comparison.efficiency_ratio;
+        const localAvg = insights.efficiency_comparison.local_avg;
+        const devAvg = insights.efficiency_comparison.dev_avg;
+        
+        content += `
+        <h5>🎯 Efficiency Analysis</h5>
+        <div class="terminal-box">
+          <div class="terminal-header">━━━ ROUTING EFFECTIVENESS ━━━</div>
+          <div class="terminal-content">
+            <div>Local Avg: ${formatDuration(localAvg)} | Dev Avg: ${formatDuration(devAvg)}</div>
+            ${ratio ? `<div>Efficiency Ratio: ${ratio.toFixed(2)}x ${ratio > 1 ? '(Local faster)' : '(Dev faster)'}</div>` : ''}
+            <div>Primary Bottleneck: ${insights.bottleneck_analysis ? insights.bottleneck_analysis.primary_bottleneck.replace(/_/g, ' ') : 'Unknown'}</div>
+            
+            ${insights.performance_trends && insights.performance_trends.trend !== 'insufficient_data' ? `
+            <div style="margin-top: 0.5em;">Performance Trend: 
+              <span style="color: ${insights.performance_trends.trend === 'improving' ? '#00ff88' : '#ff4444'};">
+                ${insights.performance_trends.trend.toUpperCase()} (${insights.performance_trends.magnitude.toFixed(1)}%)
+              </span>
+            </div>` : ''}
+          </div>
+        </div>`;
+      }
+      
+      // Add ASCII performance chart
+      if (chart && chart.chart_lines) {
+        content += `
+        <h5>📈 Performance Distribution</h5>
+        <div class="ascii-chart">${chart.chart_lines.join('\\n')}</div>`;
+      }
+      
+      // Add routing accuracy and session info
+      content += `
+        <h5>🎯 Routing Accuracy</h5>
+        <div class="stats-card">
+          <div>Correct Routing: ${stats.routing_accuracy.correct}/${stats.routing_accuracy.total}</div>
+          <div class="stats-value">${stats.routing_accuracy.accuracy.toFixed(1)}%</div>
+        </div>
+        
+        <h5>🕐 Session Info</h5>
+        <div>Uptime: ${uptime}</div>
+        
+        <button onclick="loadPerformanceStats()" style="margin-top: 1em;">🔄 Refresh Stats</button>
+      `;
+      
+      container.innerHTML = content;
+    }
+    
+    function renderPerformanceBreakdown(breakdown) {
+      const total = Object.values(breakdown).reduce((a, b) => a + b, 0);
+      if (total === 0) return "No data available";
+      
+      let chart = "";
+      const categories = [
+        { name: "excellent", char: "█", color: "#00ff88" },
+        { name: "good", char: "▓", color: "#88ff00" },
+        { name: "acceptable", char: "▒", color: "#ffaa00" },
+        { name: "slow", char: "░", color: "#ff8800" },
+        { name: "timeout_risk", char: "▪", color: "#ff4444" }
+      ];
+      
+      categories.forEach(cat => {
+        const count = breakdown[cat.name] || 0;
+        const percentage = total > 0 ? (count / total * 100).toFixed(1) : 0;
+        if (count > 0) {
+          chart += `${cat.name.padEnd(12)} ${cat.char.repeat(Math.max(1, Math.floor(count / total * 20)))} ${count} (${percentage}%)\\n`;
+        }
+      });
+      
+      return chart || "No performance data";
+    }
+
+    function formatDuration(seconds) {
+      if (seconds < 1) return `${(seconds * 1000).toFixed(0)}ms`;
+      if (seconds < 60) return `${seconds.toFixed(1)}s`;
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = seconds % 60;
+      return `${minutes}m ${remainingSeconds.toFixed(0)}s`;
+    }
+
+    function getPerformanceClass(duration, destination) {
+      if (destination === 'local') {
+        if (duration < 5) return 'performance-excellent';
+        if (duration < 15) return 'performance-good';
+        if (duration < 30) return 'performance-acceptable';
+        return 'performance-slow';
+      } else {
+        if (duration < 10) return 'performance-excellent';
+        if (duration < 30) return 'performance-good';
+        if (duration < 60) return 'performance-acceptable';
+        if (duration < 120) return 'performance-slow';
+        return 'performance-timeout_risk';
       }
     }
 
