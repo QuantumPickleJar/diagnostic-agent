@@ -58,7 +58,7 @@ except FileNotFoundError:
 routing = routing_config.get("routing", {})
 DEV_HOST = routing.get("dev_machine_ip", config.get("dev_machine", {}).get("host", "192.168.1.100"))
 DEV_PORT = routing.get("dev_machine_port", config.get("dev_machine", {}).get("port", 22))
-DEV_USER = config.get("dev_machine", {}).get("user", "pi")
+DEV_USER = routing.get("dev_machine_user", config.get("dev_machine", {}).get("user", "pi"))
 LOCAL_ENABLED = config.get("local_agent_enabled", True)
 REMOTE_ENABLED = config.get("remote_agent_enabled", True)
 WAKE_ON_LAN_ENABLED = routing.get("wake_on_lan_enabled", True)
@@ -155,6 +155,10 @@ def dispatch_task(task_text, force_local=False, force_remote=False):
     Returns:
         str: The result of task execution
     """
+    start_time = time.time()
+    error = None
+    result = None
+    
     if force_local and force_remote:
         raise ValueError("Cannot force both local and remote execution")
 
@@ -190,49 +194,123 @@ def dispatch_task(task_text, force_local=False, force_remote=False):
         "dev" if execute_remote else "local"
     )
     
-    if execute_remote:
-        if is_dev_machine_reachable(DEV_HOST, DEV_PORT):
-            BRIDGE_STATUS.update({
-                "connected": True,
-                "last_ping_time": time.time(),
-                "fallback_used": False,
-                "failure_count": 0
-            })
-            return run_remote(task_text)
+    try:
+        if execute_remote:
+            if is_dev_machine_reachable(DEV_HOST, DEV_PORT):
+                BRIDGE_STATUS.update({
+                    "connected": True,
+                    "last_ping_time": time.time(),
+                    "fallback_used": False,
+                    "failure_count": 0
+                })
+                result = run_remote(task_text)
+            else:
+                BRIDGE_STATUS.update({
+                    "connected": False,
+                    "last_ping_time": time.time(),
+                    "fallback_used": True,
+                    "failure_count": BRIDGE_STATUS["failure_count"] + 1
+                })
+                log_event("bridge_unreachable", {"ip": DEV_HOST, "port": DEV_PORT})
 
-        BRIDGE_STATUS.update({
-            "connected": False,
-            "last_ping_time": time.time(),
-            "fallback_used": True,
-            "failure_count": BRIDGE_STATUS["failure_count"] + 1
-        })
-        log_event("bridge_unreachable", {"ip": DEV_HOST, "port": DEV_PORT})
-
-        if WAKE_ON_LAN_ENABLED and attempt_wake_and_retry():
-            BRIDGE_STATUS.update({
-                "connected": True,
-                "fallback_used": False,
-                "failure_count": 0
-            })
-            return run_remote(task_text)
-
-        if BRIDGE_STATUS["failure_count"] >= 3:
-            BRIDGE_STATUS["disabled_until"] = time.time() + 600
-            log_event("bridge_auto_disabled", {"for_seconds": 600})
-        log_event("fallback", "Dev machine unreachable, executing locally")
-        return run_local(task_text)
-    else:
-        return run_local(task_text)
+                if WAKE_ON_LAN_ENABLED and attempt_wake_and_retry():
+                    BRIDGE_STATUS.update({
+                        "connected": True,
+                        "fallback_used": False,
+                        "failure_count": 0
+                    })
+                    result = run_remote(task_text)
+                else:
+                    if BRIDGE_STATUS["failure_count"] >= 3:
+                        BRIDGE_STATUS["disabled_until"] = time.time() + 600
+                        log_event("bridge_auto_disabled", {"for_seconds": 600})
+                    log_event("fallback", "Dev machine unreachable, executing locally")
+                    result = run_local(task_text)
+                    execute_remote = False  # Update for stats logging
+        else:
+            result = run_local(task_text)
+            
+    except Exception as e:
+        error = str(e)
+        logger.error(f"Dispatch task failed: {error}")
+        result = f"[ERROR] Task execution failed: {error}"
+    
+    finally:
+        end_time = time.time()
+        
+        # Log statistics for dashboard
+        try:
+            import requests
+            requests.post('http://localhost:5001/log_query', 
+                json={
+                    'query': task_text,
+                    'score': score,
+                    'routed_to': 'dev' if execute_remote else 'pi',
+                    'start_time': start_time,
+                    'end_time': end_time,
+                    'error': error
+                }, 
+                timeout=1
+            )
+        except:
+            # Don't let stats logging break the main functionality
+            pass
+            
+    return result
 
 
 def run_local(task_text):
     """Execute task locally on the Pi using the unified smart agent"""
     logger.info("[LOCAL] Executing task on Pi...")
     
+    # Check if this is a container-related query that might need special handling
+    container_keywords = ["container", "docker", "containers", "docker ps", "docker images"]
+    is_container_query = any(keyword in task_text.lower() for keyword in container_keywords)
+    
+    if is_container_query:
+        logger.info("[LOCAL] Detected container query, checking Docker access...")
+        try:
+            # Use our enhanced container diagnostics first
+            from tasks.enhanced_container_diagnostics import diagnose_container_access_issue, get_container_information
+            
+            # Quick Docker access check
+            docker_diagnosis = diagnose_container_access_issue()
+            
+            # If Docker is not accessible and this is a container query, provide diagnostic info
+            if docker_diagnosis["root_causes"]:
+                logger.warning("[LOCAL] Docker access issues detected, providing diagnostic information")
+                container_info = get_container_information()
+                
+                diagnostic_response = {
+                    "message": "Docker access issue detected in container",
+                    "diagnosis": docker_diagnosis,
+                    "container_info": container_info,
+                    "suggestion": "This query may need to be routed to the dev machine due to Docker access limitations"
+                }
+                
+                return f"[LOCAL DIAGNOSTIC] {json.dumps(diagnostic_response, indent=2)}"
+        
+        except Exception as diag_error:
+            logger.error(f"[LOCAL] Container diagnostic failed: {diag_error}")
+            # Continue with normal processing
+    
     try:
-        # Import and use the local smart agent
+        # Import and use the local smart agent with timeout
         from unified_smart_agent import smart_agent
-        result = smart_agent.process_query(task_text)
+        
+        # Set a 60-second timeout for Pi processing
+        import signal
+        
+        def timeout_handler(signum, frame):
+            raise TimeoutError("Pi execution timeout after 60 seconds")
+        
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(60)  # 60 second timeout
+        
+        try:
+            result = smart_agent.process_query(task_text)
+        finally:
+            signal.alarm(0)  # Clear the alarm
         
         log_event("local_execution", {
             "task": task_text[:100] + "..." if len(task_text) > 100 else task_text,
@@ -242,6 +320,14 @@ def run_local(task_text):
         
         return f"[LOCAL] {result}"
         
+    except TimeoutError:
+        error_msg = "Pi execution timed out after 60 seconds"
+        logger.error(error_msg)
+        log_event("local_execution_timeout", {
+            "task": task_text[:100] + "..." if len(task_text) > 100 else task_text,
+            "timeout": 60
+        })
+        return f"[LOCAL TIMEOUT] {error_msg}"
     except Exception as e:
         error_msg = f"Local execution failed: {str(e)}"
         logger.error(error_msg)
@@ -261,21 +347,23 @@ def run_remote(task_text):
     
     try:
         # Use SSH to execute on the dev machine
-        # Assume the dev machine has a similar agent setup
-        # Escape quotes outside f-string to avoid backslash in f-string
-        escaped_task = task_text.replace('"', '\\"')
+        # Escape quotes properly for shell execution
+        escaped_task = task_text.replace('"', '\\"').replace("'", "\\'")
         ssh_command = [
             "ssh", 
             "-p", str(DEV_PORT),
+            "-o", "ConnectTimeout=10",
+            "-o", "ServerAliveInterval=30",
             f"{DEV_USER}@{DEV_HOST}",
-            f"cd ~/diagnostic-agent && python3 -c \"from unified_smart_agent import smart_agent; print(smart_agent.process_query('{escaped_task}'))\""
+            f"cd ~/diagnostic-agent && python3 dev_machine_agent_optimized.py '{escaped_task}'"
         ]
         
+        # 120 second timeout for dev machine execution
         result = subprocess.run(
             ssh_command, 
             capture_output=True, 
             text=True, 
-            timeout=30  # 30 second timeout for remote execution
+            timeout=120
         )
         
         if result.returncode == 0:
