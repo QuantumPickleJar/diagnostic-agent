@@ -28,7 +28,7 @@ import os
 import shutil
 
 PING_TARGET = "1.1.1.1"
-SSH_HOST = "picklegate.ddns.net"
+SSH_HOST = os.getenv("SSH_HOST", "your-pi-hostname.local")
 SSH_PORT = 2222
 
 # Check internet connectivity with ping (with fallback if ping not available)

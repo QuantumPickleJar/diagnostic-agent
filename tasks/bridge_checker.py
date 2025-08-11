@@ -7,8 +7,8 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-DEV_MAC = os.getenv("DEV_MACHINE_MAC", "98:48:27:C6:51:05")
-DEV_IP = os.getenv("DEV_MACHINE_IP", "192.168.0.213")
+DEV_MAC = os.getenv("DEV_MACHINE_MAC", "XX:XX:XX:XX:XX:XX")
+DEV_IP = os.getenv("DEV_MACHINE_IP", "192.168.1.XXX")
 DEV_PORT = os.getenv("DEV_MACHINE_PORT", "2222")  # Fixed: use correct port
 DEV_USER = os.getenv("DEV_MACHINE_USER", "vince")  # Fixed: use correct user
 SSH_TIMEOUT = int(os.getenv("SSH_TIMEOUT", "5"))

@@ -1,0 +1,15 @@
+{
+  "routing": {
+    "delegation_threshold": 0.7,
+    "wake_on_lan_enabled": true,
+    "dev_machine_mac": "00:11:22:33:44:55",
+    "dev_machine_ip": "192.168.1.100",
+    "dev_machine_port": 2222,
+    "dev_machine_user": "your_username",
+    "ssh_timeout": 5,
+    "ssh_max_retries": 10,
+    "ssh_retry_delay": 15,
+    "bridge_check_interval": 300,
+    "pi_user": "your_pi_username"
+  }
+}

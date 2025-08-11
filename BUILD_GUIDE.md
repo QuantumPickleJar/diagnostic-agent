@@ -73,5 +73,5 @@ docker buildx rm diagnostic-builder
 ### Pi deployment fails
 ```powershell
 # Check Pi connectivity
-ssh -p 2222 castlebravo@picklegate.ddns.net 'docker --version'
+ssh -p 2222 your_pi_user@your_pi_host 'docker --version'
 ```
