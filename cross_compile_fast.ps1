@@ -21,9 +21,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# Configuration
-$PI_USER = "your_pi_user"
-$PI_HOST = "your_pi_host.local" 
+# Configuration - Use environment variables or safe defaults
+$PI_USER = if ($env:PI_USER) { $env:PI_USER } else { "your_pi_user" }
+$PI_HOST = if ($env:PI_HOST) { $env:PI_HOST } else { "your_pi_host.local" }
 $PI_PORT = "2222"
 $IMAGE_NAME = "diagnostic-agent"
 $CONTAINER_NAME = "diagnostic-journalist"
