@@ -38,6 +38,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     dnsutils \
     ca-certificates \
     wakeonlan \
+    openssh-client \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 

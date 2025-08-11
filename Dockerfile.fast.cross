@@ -36,6 +36,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     dnsutils \
     ca-certificates \
     wakeonlan \
+    libgomp1 \
+    openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Docker CLI for container management
@@ -52,7 +54,7 @@ RUN pip install --no-index --find-links=/wheels /wheels/* && \
 
 # Create non-root user early
 RUN useradd -m -u 1000 agent && \
-    groupadd -f docker && \
+    groupadd -f -g 990 docker && \
     usermod -aG docker agent
 
 # Set working directory and create necessary directories with proper ownership
@@ -64,14 +66,16 @@ RUN mkdir -p /app/agent_memory \
     /app/temp && \
     chown -R agent:agent /app
 
+# Create user cache directory with proper permissions (as root)
+RUN mkdir -p /home/agent/.cache/sentence_transformers && \
+    mkdir -p /home/agent/.cache/huggingface/hub && \
+    chown -R agent:agent /home/agent/.cache
+
 # IMPORTANT: Copy ALL application files
 COPY --chown=agent:agent . .
 
 # Switch to agent user
 USER agent
-
-# Create user cache directory
-RUN mkdir -p /home/agent/.cache/sentence_transformers
 
 # Set environment variables
 ENV PYTHONPATH=/app

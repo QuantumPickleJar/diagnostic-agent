@@ -2,7 +2,7 @@ services:
   diagnostic-agent:
     build: 
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.fast.cross
       # Enable BuildKit for faster, more efficient builds
       cache_from:
         - python:3.11-slim
@@ -14,6 +14,25 @@ services:
       - .env
     ports:
       - "0.0.0.0:5000:5000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - FLASK_ENV=production
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONPATH=/app
+      - DOCKER_BUILDKIT=1
+      - COMPOSE_DOCKER_CLI_BUILD=1
+      - HOST_ETC_PATH=/host/etc
+      - DEV_MACHINE_MAC=98:48:27:C6:51:05
+      - DEV_MACHINE_IP=192.168.0.213
+      - DEV_MACHINE_PORT=2222
+      - DEV_MACHINE_USER=vince
+      - SSH_TIMEOUT=5
+      - SSH_MAX_RETRIES=3
+      - SSH_RETRY_DELAY=15
+      - BRIDGE_CHECK_INTERVAL=300
+      - WAKE_ON_LAN_ENABLED=true
+      - TINYLLAMA_MODEL_PATH=/app/models/tinyllama.gguf
+      - HOST_PROC_PATH=/host/proc
     volumes:
       # Persist agent memory across container restarts
       - agent_memory:/app/agent_memory
@@ -29,20 +48,6 @@ services:
       - /etc:/host/etc:ro
       # Add Docker socket for container monitoring (with proper permissions)
       - /var/run/docker.sock:/var/run/docker.sock:rw
-    environment:
-      - PYTHONUNBUFFERED=1
-      - FLASK_ENV=production
-      - PYTHONDONTWRITEBYTECODE=1
-      - PYTHONPATH=/app
-      # Docker BuildKit for faster builds
-      - DOCKER_BUILDKIT=1
-      - COMPOSE_DOCKER_CLI_BUILD=1
-      # Optionally specify TinyLlama model path if available
-      - TINYLLAMA_MODEL_PATH=/app/models/tinyllama.gguf
-      # Host system paths for diagnostics
-      - HOST_PROC_PATH=/host/proc
-      - HOST_SYS_PATH=/host/sys
-      - HOST_ETC_PATH=/host/etc
     command: ["python3", "web_agent.py"]
     restart: unless-stopped
     # Use bridge network with port mapping for better isolation

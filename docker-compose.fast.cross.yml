@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   diagnostic-agent:
     build:
@@ -14,12 +12,26 @@ services:
       - ./logs:/app/logs
       - ./models:/app/models
       - ./temp:/app/temp
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+    env_file:
+      - .env
     environment:
       - FLASK_ENV=production
       - PYTHONPATH=/app
       - LOG_LEVEL=INFO
       - MODEL_CACHE_DIR=/app/models
+      - DEV_MACHINE_IP=${DEV_MACHINE_IP}
+      - DEV_MACHINE_MAC=${DEV_MACHINE_MAC}
+      - DEV_MACHINE_PORT=${DEV_MACHINE_PORT}
+      - DEV_MACHINE_USER=${DEV_MACHINE_USER}
+      - SSH_TIMEOUT=${SSH_TIMEOUT}
+      - SSH_MAX_RETRIES=${SSH_MAX_RETRIES}
+      - SSH_RETRY_DELAY=${SSH_RETRY_DELAY}
+      - BRIDGE_CHECK_INTERVAL=${BRIDGE_CHECK_INTERVAL}
+      - WAKE_ON_LAN_ENABLED=${WAKE_ON_LAN_ENABLED}
+      - PI_HOST=${PI_HOST}
+      - PI_PORT=${PI_PORT}
+      - PI_USER=${PI_USER}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s
