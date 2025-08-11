@@ -74,7 +74,7 @@ def test_bridge_monitor():
         config = monitor.config
         print(f"   Monitor config: {config['dev_machine_user']}@{config['dev_machine_ip']}:{config['dev_machine_port']}")
         
-        if config['dev_machine_port'] != 2222 or config['dev_machine_user'] != "castlebravo":
+        if config['dev_machine_port'] != 2222 or config['dev_machine_user'] != "vince":
             print("❌ Bridge monitor using wrong configuration!")
             return False
             
