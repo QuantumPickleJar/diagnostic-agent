@@ -8,9 +8,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DEV_MAC = os.getenv("DEV_MACHINE_MAC", "98:48:27:C6:51:05")
-DEV_IP = os.getenv("DEV_MACHINE_IP", "192.168.1.213")
+DEV_IP = os.getenv("DEV_MACHINE_IP", "192.168.0.213")
 DEV_PORT = os.getenv("DEV_MACHINE_PORT", "2222")  # Fixed: use correct port
-DEV_USER = os.getenv("DEV_MACHINE_USER", "castlebravo")  # Fixed: use correct user
+DEV_USER = os.getenv("DEV_MACHINE_USER", "vince")  # Fixed: use correct user
 SSH_TIMEOUT = int(os.getenv("SSH_TIMEOUT", "5"))
 MAX_RETRIES = int(os.getenv("SSH_MAX_RETRIES", "3"))  # Reduced for faster testing
 RETRY_DELAY = int(os.getenv("SSH_RETRY_DELAY", "10"))  # Reduced for faster testing

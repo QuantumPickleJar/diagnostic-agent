@@ -7,6 +7,7 @@ except ImportError:
     def load_dotenv(*args, **kwargs):
         pass  # No-op if dotenv not available
 from threading import Timer, Thread
+from pathlib import Path
 import faiss_utils
 import memory
 import subprocess
@@ -68,6 +69,24 @@ try:
 except ImportError as e:
     AUTONOMIC_DISPATCHER_AVAILABLE = False
     logger.warning(f"Autonomic dispatcher not available: {e}")
+
+# Import statistics logger
+try:
+    from stats_logger import stats_logger
+    STATS_AVAILABLE = True
+    logger.info("Statistics logger loaded successfully")
+except ImportError as e:
+    STATS_AVAILABLE = False
+    logger.warning(f"Statistics logger not available: {e}")
+
+# Import configuration manager
+try:
+    from config_manager import config_manager
+    CONFIG_MANAGER_AVAILABLE = True
+    logger.info("Configuration manager loaded successfully")
+except ImportError as e:
+    CONFIG_MANAGER_AVAILABLE = False
+    logger.warning(f"Configuration manager not available: {e}")
     
     # Fallback functions
     def dispatch_task(task_text):
@@ -298,6 +317,24 @@ def rotate_debug_logs():
 def execute_diagnostic_query(question):
     """Execute diagnostic query using autonomic dispatcher for smart routing"""
     
+    # Generate unique query ID for tracking
+    query_id = f"q_{int(time.time() * 1000)}_{hash(question) % 10000}"
+    
+    # Determine expected destination based on semantic scoring
+    expected_destination = "local"
+    if AUTONOMIC_DISPATCHER_AVAILABLE:
+        try:
+            from semantic_task_scorer import semantic_scorer
+            score = semantic_scorer.score(question)
+            expected_destination = "dev" if score >= semantic_scorer.threshold else "local"
+        except:
+            pass
+    
+    # Start stats tracking
+    start_entry = None
+    if STATS_AVAILABLE:
+        start_entry = stats_logger.log_query_start(query_id, question, expected_destination)
+    
     # Check if this is a system data query that should return raw data
     system_data_keywords = ['how many containers', 'container count', 'list containers', 'docker ps']
     question_lower = question.lower()
@@ -324,7 +361,14 @@ Note: This is raw system data without AI interpretation to ensure accuracy."""
     if AUTONOMIC_DISPATCHER_AVAILABLE:
         try:
             logger.info(f"Processing query via autonomic dispatcher: {question[:50]}...")
-            return dispatch_task(question)
+            result = dispatch_task(question)
+            actual_destination = "dev" if "REMOTE" in result else "local"
+            
+            # Log completion
+            if STATS_AVAILABLE:
+                stats_logger.log_query_complete(query_id, actual_destination, len(result), True)
+            
+            return result
         except Exception as e:
             logger.error(f"Autonomic dispatcher failed: {e}")
             # Fall back to local smart agent
@@ -333,7 +377,13 @@ Note: This is raw system data without AI interpretation to ensure accuracy."""
     if SMART_AGENT_AVAILABLE:
         try:
             logger.info("Falling back to local smart agent")
-            return process_smart_query(question)
+            result = process_smart_query(question)
+            
+            # Log completion
+            if STATS_AVAILABLE:
+                stats_logger.log_query_complete(query_id, "local", len(result), True)
+            
+            return result
         except Exception as e:
             logger.error(f"Smart diagnostic agent failed: {e}")
             # Fall back to traditional methods
@@ -342,7 +392,13 @@ Note: This is raw system data without AI interpretation to ensure accuracy."""
     if REAL_DIAGNOSTICS:
         try:
             logger.info("Falling back to traditional diagnostic engine")
-            return execute_diagnostic(question)
+            result = execute_diagnostic(question)
+            
+            # Log completion
+            if STATS_AVAILABLE:
+                stats_logger.log_query_complete(query_id, "local", len(result), True)
+            
+            return result
         except Exception as e:
             logger.error(f"Diagnostic engine failed: {e}")
     
@@ -355,6 +411,10 @@ Unable to process diagnostic request. Available diagnostic engines are not funct
 Please check system logs and ensure diagnostic capabilities are properly installed.
 
 Status: Error - diagnostic engines unavailable."""
+    
+    # Log completion (error case)
+    if STATS_AVAILABLE:
+        stats_logger.log_query_complete(query_id, "local", len(response), False, "No diagnostic engines available")
     
     # Log the error
     try:
@@ -663,6 +723,184 @@ def semantic_threshold():
     return jsonify(semantic_scorer.status())
 
 
+@app.route('/stats/performance', methods=['GET'])
+@error_handler
+def stats_performance():
+    """Get performance statistics for the dashboard"""
+    if not STATS_AVAILABLE:
+        return jsonify({'error': 'Statistics not available'}), 503
+    
+    hours = int(request.args.get('hours', 24))
+    return jsonify(stats_logger.get_recent_stats(hours))
+
+
+@app.route('/stats/ascii_chart', methods=['GET'])
+@error_handler
+def stats_ascii_chart():
+    """Get ASCII chart data for terminal display"""
+    if not STATS_AVAILABLE:
+        return jsonify({'error': 'Statistics not available'}), 503
+    
+    hours = int(request.args.get('hours', 24))
+    stats = stats_logger.get_recent_stats(hours)
+    chart_lines = stats_logger.get_ascii_chart(stats['performance_distribution'])
+    
+    return jsonify({
+        'chart_lines': chart_lines,
+        'stats': stats
+    })
+
+
+@app.route('/stats/dev_analysis', methods=['GET'])
+@error_handler  
+def stats_dev_analysis():
+    """Get detailed dev machine performance analysis"""
+    if not STATS_AVAILABLE:
+        return jsonify({'error': 'Statistics not available'}), 503
+    
+    hours = int(request.args.get('hours', 24))
+    analysis = stats_logger.analyze_dev_machine_performance(hours)
+    
+    return jsonify(analysis)
+
+
+@app.route('/stats/insights', methods=['GET'])
+@error_handler
+def stats_insights():
+    """Get comprehensive performance insights"""
+    if not STATS_AVAILABLE:
+        return jsonify({'error': 'Statistics not available'}), 503
+    
+    hours = int(request.args.get('hours', 24))
+    insights = stats_logger.get_performance_insights(hours)
+    
+    return jsonify(insights)
+
+
+@app.route('/config/pi_snapshot', methods=['GET'])
+@error_handler
+def config_pi_snapshot():
+    """Get Pi configuration snapshot for dev machine"""
+    try:
+        # Gather Pi configuration data for dev machine context
+        config_snapshot = {
+            "pi_info": {
+                "hostname": os.uname().nodename if hasattr(os, 'uname') else "unknown",
+                "agent_uptime": time.time() - (getattr(start_time, 'value', time.time()) if hasattr(start_time, 'value') else time.time()),
+                "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+                "working_directory": os.getcwd()
+            },
+            "routing_config": {},
+            "semantic_config": {},
+            "bridge_status": {},
+            "available_tasks": [],
+            "system_capabilities": {
+                "diagnostic_modules": [],
+                "local_model": "TinyLlama-1.1B",
+                "memory_available": False,  # Will be determined dynamically
+                "faiss_available": False
+            },
+            "recent_performance": {
+                "avg_local_response_time": 0,
+                "total_queries_24h": 0,
+                "success_rate": 100.0
+            }
+        }
+        
+        # Load routing configuration
+        try:
+            routing_file = Path("agent_memory/routing_config.json")
+            if routing_file.exists():
+                with open(routing_file) as f:
+                    config_snapshot["routing_config"] = json.load(f)
+        except Exception as e:
+            config_snapshot["routing_config"] = {"error": str(e)}
+        
+        # Load semantic configuration  
+        try:
+            semantic_file = Path("agent_memory/semantic_config.json")
+            if semantic_file.exists():
+                with open(semantic_file) as f:
+                    config_snapshot["semantic_config"] = json.load(f)
+        except Exception as e:
+            config_snapshot["semantic_config"] = {"error": str(e)}
+        
+        # Get bridge status
+        try:
+            if BRIDGE_MONITOR_AVAILABLE:
+                config_snapshot["bridge_status"] = get_detailed_bridge_status()
+            else:
+                config_snapshot["bridge_status"] = {"error": "Bridge monitor not available"}
+        except Exception as e:
+            config_snapshot["bridge_status"] = {"error": str(e)}
+        
+        # List available diagnostic tasks
+        try:
+            tasks_dir = Path("tasks")
+            if tasks_dir.exists():
+                config_snapshot["available_tasks"] = [
+                    f.stem for f in tasks_dir.glob("*.py") 
+                    if f.is_file() and not f.name.startswith("__")
+                ]
+        except Exception as e:
+            config_snapshot["available_tasks"] = [f"Error: {e}"]
+        
+        # Check system capabilities
+        try:
+            # Check for memory/FAISS
+            try:
+                import memory, faiss_utils
+                config_snapshot["system_capabilities"]["memory_available"] = True
+                config_snapshot["system_capabilities"]["faiss_available"] = True
+            except ImportError:
+                pass
+            
+            # List diagnostic modules
+            try:
+                import importlib
+                diagnostic_modules = ["system_heartbeat", "network_troubleshooting", "comprehensive_network_diagnostic"]
+                available_modules = []
+                for module in diagnostic_modules:
+                    try:
+                        importlib.import_module(f"tasks.{module}")
+                        available_modules.append(module)
+                    except ImportError:
+                        pass
+                config_snapshot["system_capabilities"]["diagnostic_modules"] = available_modules
+            except Exception:
+                pass
+        except Exception as e:
+            config_snapshot["system_capabilities"]["error"] = str(e)
+        
+        # Get recent performance stats
+        try:
+            if STATS_AVAILABLE:
+                recent_stats = stats_logger.get_recent_stats(24)
+                config_snapshot["recent_performance"] = {
+                    "avg_local_response_time": recent_stats["performance"]["local"].get("avg_duration", 0),
+                    "total_queries_24h": recent_stats["summary"]["total_queries"],
+                    "success_rate": recent_stats["summary"]["success_rate"]
+                }
+        except Exception as e:
+            config_snapshot["recent_performance"]["error"] = str(e)
+        
+        return jsonify(config_snapshot)
+        
+    except Exception as e:
+        return jsonify({"error": f"Failed to generate config snapshot: {str(e)}"}), 500
+
+
+@app.route('/config/generate_snapshot', methods=['POST'])
+@error_handler
+def config_generate_snapshot():
+    """Generate new Pi configuration snapshot"""
+    if not CONFIG_MANAGER_AVAILABLE:
+        return jsonify({'error': 'Configuration manager not available'}), 503
+    
+    snapshot = config_manager.generate_pi_config_snapshot()
+    return jsonify(snapshot)
+
+
 @app.route('/bridge_status', methods=['GET'])
 @error_handler
 def bridge_status():
@@ -796,6 +1034,41 @@ def routing_config():
         except Exception as e:
             logger.error(f"Error updating routing config: {e}")
             return jsonify({"error": "Failed to update routing config"}), 500
+
+
+@app.route('/stats')
+@error_handler
+def stats_dashboard():
+    """Serve the statistics dashboard"""
+    try:
+        # Import and run the stats dashboard
+        import stats_dashboard
+        return stats_dashboard.app.test_client().get('/').get_data(as_text=True)
+    except ImportError:
+        # Fallback - serve a simple redirect
+        return '''
+        <!DOCTYPE html>
+        <html>
+        <head><title>Statistics Dashboard</title></head>
+        <body>
+            <h1>Statistics Dashboard</h1>
+            <p>The statistics dashboard is not available. Please check that stats_dashboard.py is present.</p>
+        </body>
+        </html>
+        ''', 503
+
+
+@app.route('/stats/<path:filename>')
+@error_handler
+def stats_static(filename):
+    """Serve static files for the stats dashboard"""
+    try:
+        import stats_dashboard
+        # Forward the request to the stats dashboard app
+        response = stats_dashboard.app.test_client().get(f'/{filename}')
+        return response.get_data(), response.status_code, dict(response.headers)
+    except ImportError:
+        return "Stats dashboard not available", 503
 
 def load_config():
     """Load configuration from file"""
