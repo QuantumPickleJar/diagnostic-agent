@@ -2,39 +2,37 @@ services:
   diagnostic-agent:
     build: 
       context: .
-      dockerfile: Dockerfile.fast.cross
+      dockerfile: Dockerfile.fast
       # Enable BuildKit for faster, more efficient builds
       cache_from:
         - python:3.11-slim
       # Use build arguments to improve caching
       args:
         BUILDKIT_INLINE_CACHE: 1
-    # ARM64 image for Raspberry Pi deployment
-    image: diagnostic-agent:production-arm64
-    container_name: diagnostic-journalist
+    container_name: diagnostic-journalist-symbiote
     env_file:
       - .env
     ports:
       - "0.0.0.0:5000:5000"
     environment:
       - PYTHONUNBUFFERED=1
-      - FLASK_ENV=production
+      - FLASK_ENV=development
       - PYTHONDONTWRITEBYTECODE=1
       - PYTHONPATH=/app
       - DOCKER_BUILDKIT=1
       - COMPOSE_DOCKER_CLI_BUILD=1
       - HOST_ETC_PATH=/host/etc
-      # Pi deployment configuration - delegates to dev machine when needed
-      - PI_DEPLOYMENT=true
+      # Symbiote mode: All models run on dev machine (no remote delegation)
+      - SYMBIOTE_MODE=true
       - DEV_MACHINE_MAC=98:48:27:C6:51:05
-      - DEV_MACHINE_IP=192.168.0.213
+      - DEV_MACHINE_IP=127.0.0.1  # Local since everything runs on dev machine
       - DEV_MACHINE_PORT=2222
       - DEV_MACHINE_USER=vince
-      - SSH_TIMEOUT=5
-      - SSH_MAX_RETRIES=3
-      - SSH_RETRY_DELAY=15
-      - BRIDGE_CHECK_INTERVAL=300
-      - WAKE_ON_LAN_ENABLED=true
+      - SSH_TIMEOUT=2  # Faster timeout for local connections
+      - SSH_MAX_RETRIES=1  # Fewer retries for local
+      - SSH_RETRY_DELAY=5
+      - BRIDGE_CHECK_INTERVAL=60  # More frequent checks for dev
+      - WAKE_ON_LAN_ENABLED=false  # Not needed in symbiote mode
       - TINYLLAMA_MODEL_PATH=/app/models/tinyllama.gguf
       - HOST_PROC_PATH=/host/proc
     volumes:
@@ -46,7 +44,7 @@ services:
       - ./models:/app/models
       # Cache for sentence transformer models to speed up restarts
       - model_cache:/home/agent/.cache
-      # Mount host network and system info for diagnostics
+      # Mount host network and system info for diagnostics (Windows/WSL paths)
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /etc:/host/etc:ro
@@ -65,27 +63,15 @@ services:
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s
-      timeout: 15s
+      timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 30s  # Faster startup for dev machine
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
-        max-file: "5"
-    # Resource limits for Pi deployment (Docker Compose v2 syntax)
-    mem_limit: 1g
-    mem_reservation: 512m
-    cpus: 1.5
-    # Deploy section for future swarm compatibility
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: '1.5'
-        reservations:
-          memory: 512M
-          cpus: '0.5'
+        max-file: "3"
+    # No resource limits for dev machine - use full power
     security_opt:
       - no-new-privileges:true
     tmpfs:
@@ -95,11 +81,33 @@ services:
       # Allow writing to Python cache
       - /home/agent/.cache/pip:rw
 
+  # Optional: Include OpenHermes inference server for local LLM fallback
+  openhermes-server:
+    build:
+      context: ./inference-server
+      dockerfile: Dockerfile
+    container_name: openhermes-symbiote
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    restart: unless-stopped
+    networks:
+      - diagnostic-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
 networks:
   diagnostic-net:
     driver: bridge
     driver_opts:
-      com.docker.network.bridge.name: br-diagnostic
+      com.docker.network.bridge.name: br-diagnostic-symbiote
       com.docker.network.bridge.enable_ip_masquerade: 'true'
       com.docker.network.bridge.enable_icc: 'true'
       com.docker.network.driver.mtu: 1500
@@ -108,4 +116,6 @@ volumes:
   agent_memory:
     driver: local
   model_cache:
+    driver: local
+  ollama-data:
     driver: local

@@ -8,3 +8,4 @@
 {"timestamp": "2025-08-11T03:08:34Z", "event_type": "dispatch_decision", "data": {"score": 0.6510416666666666, "threshold": 0.7, "reason": "Forced local execution", "execute_remote": false, "task_preview": "list all running containers"}}
 {"task": "list all running containers", "score": 0.651, "routed_to": "local"}
 {"timestamp": "2025-08-11T03:08:34Z", "event_type": "local_execution_error", "data": {"task": "list all running containers", "error": "No module named 'psutil'"}}
+{"timestamp": "2025-08-11T19:26:15Z", "event_type": "local_execution_error", "data": {"task": "Show system status", "error": "No module named 'psutil'"}}
