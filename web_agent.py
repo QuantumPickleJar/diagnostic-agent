@@ -905,7 +905,19 @@ def config_generate_snapshot():
 @error_handler
 def bridge_status():
     """Return current SSH bridge status"""
-    return jsonify(get_bridge_status())
+    # Use bridge monitor status if available, otherwise fall back to autonomic dispatcher
+    if BRIDGE_MONITOR_AVAILABLE:
+        detailed_status = get_detailed_bridge_status()
+        # Convert detailed status to the format expected by the frontend
+        return jsonify({
+            "status": "connected" if detailed_status.get("bridge_connected", False) else "disconnected",
+            "last_ping_time": detailed_status.get("last_check"),
+            "fallback_used": False,
+            "wake_on_lan_enabled": True,  # Bridge monitor always supports WOL
+            "disabled_until": 0
+        })
+    else:
+        return jsonify(get_bridge_status())
 
 
 @app.route('/bridge/status', methods=['GET'])

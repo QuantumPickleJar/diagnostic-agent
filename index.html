@@ -111,8 +111,129 @@
       background: #1e1e1e;
       border: 1px solid #00ff88;
       padding: 1em;
-      max-height: 300px;
+      max-height: 400px;
       overflow-y: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    
+    .json-beautifier {
+      color: #e6e6e6;
+    }
+    
+    .json-key {
+      color: #9cdcfe;
+      font-weight: bold;
+    }
+    
+    .json-string {
+      color: #ce9178;
+    }
+    
+    .json-number {
+      color: #b5cea8;
+    }
+    
+    .json-boolean {
+      color: #569cd6;
+    }
+    
+    .json-null {
+      color: #808080;
+    }
+    
+    .json-brace {
+      color: #ffd700;
+      font-weight: bold;
+    }
+    
+    .json-bracket {
+      color: #ffd700;
+      font-weight: bold;
+    }
+    
+    .json-comma {
+      color: #ffffff;
+    }
+    
+    .json-colon {
+      color: #ffffff;
+    }
+    
+    .json-collapsible {
+      cursor: pointer;
+      user-select: none;
+      padding: 2px 6px;
+      margin: 2px 0;
+      border-radius: 3px;
+      transition: background-color 0.2s;
+    }
+    
+    .json-collapsible:hover {
+      background-color: #2d2d30;
+    }
+    
+    .json-collapsed {
+      display: none;
+    }
+    
+    .json-toggle {
+      color: #608b4e;
+      font-weight: bold;
+      margin-right: 5px;
+    }
+    
+    .json-entry {
+      margin-bottom: 15px;
+      padding: 10px;
+      border-left: 3px solid #00ff88;
+      background: #252526;
+      border-radius: 4px;
+    }
+    
+    .json-entry-header {
+      font-weight: bold;
+      color: #4ec9b0;
+      margin-bottom: 8px;
+      cursor: pointer;
+      user-select: none;
+    }
+    
+    .json-entry-header:hover {
+      color: #00ff88;
+    }
+    
+    .json-copy-btn {
+      float: right;
+      background: #007acc;
+      color: white;
+      border: none;
+      padding: 2px 8px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 11px;
+      margin-left: 10px;
+    }
+    
+    .json-copy-btn:hover {
+      background: #005a9e;
+    }
+    
+    .json-search {
+      margin-bottom: 10px;
+      padding: 8px;
+      background: #3c3c3c;
+      border: 1px solid #00ff88;
+      color: #e6e6e6;
+      border-radius: 4px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    
+    .json-highlight {
+      background-color: #ffff0040;
+      border-radius: 2px;
     }
     .settings-viewer {
       display: none;
@@ -366,18 +487,221 @@
           const res = await fetch('/recall');
           const json = await res.json();
           if (json.error) {
-            log.textContent = `Error: ${json.error}`;
+            log.innerHTML = `<div style="color: #ff4444;">Error: ${json.error}</div>`;
           } else {
-            log.textContent = JSON.stringify(json.entries, null, 2);
+            log.innerHTML = beautifyRecallLog(json.entries);
           }
           log.style.display = 'block';
         } catch (error) {
-          log.textContent = `Connection error: ${error.message}`;
+          log.innerHTML = `<div style="color: #ff4444;">Connection error: ${error.message}</div>`;
           log.style.display = 'block';
         }
       } else {
         log.style.display = 'none';
       }
+    }
+
+    function beautifyRecallLog(entries) {
+      if (!entries || entries.length === 0) {
+        return '<div style="color: #808080; font-style: italic;">No recall log entries found.</div>';
+      }
+
+      let html = `
+        <input type="text" class="json-search" placeholder="Search recall log..." 
+               onkeyup="filterRecallLog(this.value)" id="recallSearch">
+        <div style="margin-bottom: 10px; color: #9cdcfe;">
+          <small>Found ${entries.length} entries. Click headers to collapse/expand.</small>
+        </div>
+      `;
+
+      entries.forEach((entry, index) => {
+        const timestamp = entry.timestamp || 'Unknown time';
+        const eventType = entry.event_type || 'unknown_event';
+        const entryId = `entry-${index}`;
+        
+        html += `
+          <div class="json-entry" id="${entryId}">
+            <div class="json-entry-header" onclick="toggleEntry('${entryId}-content')">
+              <span class="json-toggle">▼</span>
+              <span style="color: #4ec9b0;">${timestamp}</span> - 
+              <span style="color: #dcdcaa;">${eventType}</span>
+              <button class="json-copy-btn" onclick="copyToClipboard(${JSON.stringify(JSON.stringify(entry))})">Copy</button>
+            </div>
+            <div id="${entryId}-content" class="json-beautifier">
+              ${beautifyJSON(entry, 0)}
+            </div>
+          </div>
+        `;
+      });
+
+      return html;
+    }
+
+    function beautifyJSON(obj, indent = 0) {
+      const indentStr = '  '.repeat(indent);
+      const nextIndentStr = '  '.repeat(indent + 1);
+
+      if (obj === null) {
+        return '<span class="json-null">null</span>';
+      }
+
+      if (typeof obj === 'string') {
+        return `<span class="json-string">"${escapeHtml(obj)}"</span>`;
+      }
+
+      if (typeof obj === 'number') {
+        return `<span class="json-number">${obj}</span>`;
+      }
+
+      if (typeof obj === 'boolean') {
+        return `<span class="json-boolean">${obj}</span>`;
+      }
+
+      if (Array.isArray(obj)) {
+        if (obj.length === 0) {
+          return '<span class="json-bracket">[]</span>';
+        }
+
+        let html = '<span class="json-bracket">[</span>\n';
+        obj.forEach((item, index) => {
+          html += nextIndentStr + beautifyJSON(item, indent + 1);
+          if (index < obj.length - 1) {
+            html += '<span class="json-comma">,</span>';
+          }
+          html += '\n';
+        });
+        html += indentStr + '<span class="json-bracket">]</span>';
+        return html;
+      }
+
+      if (typeof obj === 'object') {
+        const keys = Object.keys(obj);
+        if (keys.length === 0) {
+          return '<span class="json-brace">{}</span>';
+        }
+
+        let html = '<span class="json-brace">{</span>\n';
+        keys.forEach((key, index) => {
+          html += nextIndentStr;
+          html += `<span class="json-key">"${escapeHtml(key)}"</span>`;
+          html += '<span class="json-colon">: </span>';
+          html += beautifyJSON(obj[key], indent + 1);
+          if (index < keys.length - 1) {
+            html += '<span class="json-comma">,</span>';
+          }
+          html += '\n';
+        });
+        html += indentStr + '<span class="json-brace">}</span>';
+        return html;
+      }
+
+      return String(obj);
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function toggleEntry(entryId) {
+      const element = document.getElementById(entryId);
+      const toggle = element.parentElement.querySelector('.json-toggle');
+      
+      if (element.style.display === 'none') {
+        element.style.display = 'block';
+        toggle.textContent = '▼';
+      } else {
+        element.style.display = 'none';
+        toggle.textContent = '▶';
+      }
+    }
+
+    function copyToClipboard(text) {
+      navigator.clipboard.writeText(text).then(() => {
+        // Brief visual feedback
+        event.target.textContent = 'Copied!';
+        setTimeout(() => {
+          event.target.textContent = 'Copy';
+        }, 1000);
+      }).catch(err => {
+        console.error('Failed to copy: ', err);
+        event.target.textContent = 'Failed';
+        setTimeout(() => {
+          event.target.textContent = 'Copy';
+        }, 1000);
+      });
+    }
+
+    function filterRecallLog(searchTerm) {
+      const entries = document.querySelectorAll('.json-entry');
+      const term = searchTerm.toLowerCase();
+      
+      entries.forEach(entry => {
+        const text = entry.textContent.toLowerCase();
+        if (term === '' || text.includes(term)) {
+          entry.style.display = 'block';
+          // Highlight matching text
+          if (term !== '') {
+            highlightSearchTerm(entry, term);
+          } else {
+            removeHighlights(entry);
+          }
+        } else {
+          entry.style.display = 'none';
+        }
+      });
+    }
+
+    function highlightSearchTerm(element, term) {
+      // Remove existing highlights first
+      removeHighlights(element);
+      
+      const walker = document.createTreeWalker(
+        element,
+        NodeFilter.SHOW_TEXT,
+        null,
+        false
+      );
+      
+      const textNodes = [];
+      let node;
+      while (node = walker.nextNode()) {
+        textNodes.push(node);
+      }
+      
+      textNodes.forEach(textNode => {
+        const text = textNode.textContent;
+        const lowerText = text.toLowerCase();
+        const index = lowerText.indexOf(term);
+        
+        if (index !== -1) {
+          const parent = textNode.parentNode;
+          const beforeText = text.substring(0, index);
+          const matchText = text.substring(index, index + term.length);
+          const afterText = text.substring(index + term.length);
+          
+          const beforeNode = document.createTextNode(beforeText);
+          const matchNode = document.createElement('span');
+          matchNode.className = 'json-highlight';
+          matchNode.textContent = matchText;
+          const afterNode = document.createTextNode(afterText);
+          
+          parent.insertBefore(beforeNode, textNode);
+          parent.insertBefore(matchNode, textNode);
+          parent.insertBefore(afterNode, textNode);
+          parent.removeChild(textNode);
+        }
+      });
+    }
+
+    function removeHighlights(element) {
+      const highlights = element.querySelectorAll('.json-highlight');
+      highlights.forEach(highlight => {
+        const parent = highlight.parentNode;
+        parent.insertBefore(document.createTextNode(highlight.textContent), highlight);
+        parent.removeChild(highlight);
+      });
     }
 
     async function toggleSettings() {
